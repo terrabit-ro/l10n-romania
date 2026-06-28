@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!--
+      Migrare 18.0 -> 19.0: campul l10n_ro_notice pe formularul de picking
+      (after backorder_id) si required pe partner_id sunt deja adaugate de
+      modulul parinte l10n_ro_stock_account (view_picking_form) in 19.0.
+      Recordul view_picking_add_notice_form a fost eliminat aici pentru a
+      nu dubla acelasi xpath. Functionalitatea pe formular este pastrata.
+    -->
+    <record id="view_picking_add_notice_tree" model="ir.ui.view">
+        <field name="name">view_picking_add_notice_tree</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.vpicktree" />
+        <field name="arch" type="xml">
+            <field name="origin" position="before">
+                <field name="l10n_ro_notice" optional="show" />
+            </field>
+        </field>
+    </record>
+    <record id="view_picking_internal_add_notice_search" model="ir.ui.view">
+        <field name="name">view_picking_internal_add_notice_search</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_internal_search" />
+        <field name="arch" type="xml">
+            <filter name="backorder" position="after">
+                <filter
+                    name="notice"
+                    string="Is notice"
+                    domain="[('l10n_ro_notice', '=', True)]"
+                />
+            </filter>
+        </field>
+    </record>
+
+    <!--    <record id="stock_picking_kanban" model="ir.ui.view">
+        <field name="name">stock.picking.kanban</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.stock_picking_kanban" />
+        <field name="arch" type="xml">
+            <field name="activity_state" position="after">
+                <field name="is_l10n_ro_record" invisible="1" />
+                <field name="l10n_ro_notice" />
+            </field>
+            <xpath expr="//div[hasclass('o_kanban_record_bottom')]" position="before">
+                <field name="is_l10n_ro_record" invisible="1" />
+                <div class="oe_kanban_content">
+                    <label for="l10n_ro_notice">Is notice</label>
+                    <field name="l10n_ro_notice" widget="boolean_toggle" />
+                </div>
+            </xpath>
+        </field>
+    </record>-->
+
+    <record id="view_picking_type_form" model="ir.ui.view">
+        <field name="name">stock.picking.type.inherit</field>
+        <field name="model">stock.picking.type</field>
+        <field name="inherit_id" ref="stock.view_picking_type_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='warehouse_id']" position="after">
+                <field name="l10n_ro_notice_default" />
+            </xpath>
+        </field>
+    </record>
+</odoo>
