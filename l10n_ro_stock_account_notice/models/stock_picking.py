@@ -13,15 +13,11 @@ class StockPickingType(models.Model):
     l10n_ro_notice_default = fields.Boolean(string="Romania - Is a notice")
 
 
-class StockPicking(models.Model):
-    _name = "stock.picking"
-    _inherit = ["stock.picking", "l10n.ro.mixin"]
-
-    # Prin acest camp se indica daca un produs care e stocabil trece prin
-    # contul 408 / 418 la achizitie sau vanzare
-    # receptie/ livrare in baza de aviz
-    l10n_ro_notice = fields.Boolean(
-        string="Romania - Is a notice",
-        help="This field sets the reception/delivery as a notice."
-        " The resulting account move will include accounts 408/418.",
-    )
+# NOTE migrare 18.0 -> 19.0:
+# Campul stock.picking.l10n_ro_notice era definit aici in 18.0. In 19.0
+# el a fost mutat in modulul parinte l10n_ro_stock_account
+# (stock_picking.py), care il deine si il foloseste in
+# stock_move._get_l10n_ro_move_type. Pentru a nu dubla definiia campului
+# nu il mai redeclaram aici. Ramane unic acestui modul doar
+# l10n_ro_notice_default de pe stock.picking.type (setarea implicita a
+# avizului pe tipul de operatie), consumat in stock_move si purchase_order.

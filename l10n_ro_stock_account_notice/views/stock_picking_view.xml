@@ -1,19 +1,12 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <record id="view_picking_add_notice_form" model="ir.ui.view">
-        <field name="name">view_picking_add_note_form</field>
-        <field name="model">stock.picking</field>
-        <field name="inherit_id" ref="stock.view_picking_form" />
-        <field name="arch" type="xml">
-            <field name="backorder_id" position="after">
-                <field name="l10n_ro_notice" readonly="state in ('done', 'cancel')" />
-            </field>
-            <!-- if is a notice/aviz to be mandatory the partner_id -->
-            <field name="partner_id" position="attributes">
-                <attribute name="required">l10n_ro_notice</attribute>
-            </field>
-        </field>
-    </record>
+    <!--
+      Migrare 18.0 -> 19.0: campul l10n_ro_notice pe formularul de picking
+      (after backorder_id) si required pe partner_id sunt deja adaugate de
+      modulul parinte l10n_ro_stock_account (view_picking_form) in 19.0.
+      Recordul view_picking_add_notice_form a fost eliminat aici pentru a
+      nu dubla acelasi xpath. Functionalitatea pe formular este pastrata.
+    -->
     <record id="view_picking_add_notice_tree" model="ir.ui.view">
         <field name="name">view_picking_add_notice_tree</field>
         <field name="model">stock.picking</field>
