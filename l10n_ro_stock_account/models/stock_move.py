@@ -4,14 +4,41 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
 import logging
-from datetime import datetime
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
-from odoo.fields import Date
 from odoo.tools.sql import column_exists, create_column
 
 _logger = logging.getLogger(__name__)
+
+# Kept as a module level constant so that other modules can reuse it; up to 18.0
+# the same list lived on stock.valuation.layer as VALUED_TYPE, and the storage
+# sheet report imported it from there.
+MOVE_TYPE = [
+    ("reception", "Reception"),
+    ("reception_return", "Reception Return"),
+    ("reception_notice", "Reception Notice"),
+    ("reception_notice_return", "Reception Notice Return"),
+    ("reception_in_progress", "Reception In Progress"),
+    ("reception_in_progress_return", "Reception In Progress Return"),
+    ("delivery", "Delivery"),
+    ("delivery_return", "Delivery Return"),
+    ("delivery_notice", "Delivery Notice"),
+    ("delivery_notice_return", "Delivery Notice Return"),
+    ("plus_inventory", "Plus Inventory"),
+    ("minus_inventory", "Minus Inventory"),
+    ("consumption", "Consumption"),
+    ("consumption_return", "Consumption Return"),
+    ("usage_giving", "Usage Giving"),
+    ("usage_giving_return", "Usage Giving Return"),
+    ("production", "Production"),
+    ("production_return", "Production Return"),
+    ("internal_transfer", "Internal Transfer"),
+    ("internal_transit_out", "Internal Transit Out"),
+    ("internal_transit_in", "Internal Transit In"),
+    ("dropshipped", "Dropshipped"),
+    ("dropshipped_return", "Dropshipped Return"),
+]
 
 
 class StockMove(models.Model):
@@ -26,31 +53,7 @@ class StockMove(models.Model):
         copy=False,
     )
     l10n_ro_move_type = fields.Selection(
-        [
-            ("reception", "Reception"),
-            ("reception_return", "Reception Return"),
-            ("reception_notice", "Reception Notice"),
-            ("reception_notice_return", "Reception Notice Return"),
-            ("reception_in_progress", "Reception In Progress"),
-            ("reception_in_progress_return", "Reception In Progress Return"),
-            ("delivery", "Delivery"),
-            ("delivery_return", "Delivery Return"),
-            ("delivery_notice", "Delivery Notice"),
-            ("delivery_notice_return", "Delivery Notice Return"),
-            ("plus_inventory", "Plus Inventory"),
-            ("minus_inventory", "Minus Inventory"),
-            ("consumption", "Consumption"),
-            ("consumption_return", "Consumption Return"),
-            ("usage_giving", "Usage Giving"),
-            ("usage_giving_return", "Usage Giving Return"),
-            ("production", "Production"),
-            ("production_return", "Production Return"),
-            ("internal_transfer", "Internal Transfer"),
-            ("internal_transit_out", "Internal Transit Out"),
-            ("internal_transit_in", "Internal Transit In"),
-            ("dropshipped", "Dropshipped"),
-            ("dropshipped_return", "Dropshipped Return"),
-        ],
+        MOVE_TYPE,
         compute="_compute_l10n_ro_move_type",
         store=True,
         string="Romanian - Move Type",
@@ -569,76 +572,76 @@ class StockMove(models.Model):
                 ]
         return res
 
-    def _get_value_from_account_move(self, quantity, at_date=None):
-        # Override since there are some errors from commit
-        # https://github.com/odoo/odoo/commit/47345b1fc8b805e232a4287cc6d5c54b2f5886cb
-        valuation_data = dict(quantity=0, value=0, description=False)
-        if not self.purchase_line_id:
-            return valuation_data
+    # def _get_value_from_account_move(self, quantity, at_date=None):
+    #     # Override since there are some errors from commit
+    #     # https://github.com/odoo/odoo/commit/47345b1fc8b805e232a4287cc6d5c54b2f5886cb
+    #     valuation_data = dict(quantity=0, value=0, description=False)
+    #     if not self.purchase_line_id:
+    #         return valuation_data
 
-        if not self.company_id.l10n_ro_accounting:
-            return super()._get_value_from_account_move(quantity, at_date=at_date)
-        if isinstance(at_date, datetime):
-            # Since aml.date are Date, we don't need the extra precision here.
-            at_date = Date.to_date(at_date)
+    #     if not self.company_id.l10n_ro_accounting:
+    #         return super()._get_value_from_account_move(quantity, at_date=at_date)
+    #     if isinstance(at_date, datetime):
+    #         # Since aml.date are Date, we don't need the extra precision here.
+    #         at_date = Date.to_date(at_date)
 
-        aml_quantity = 0
-        value = 0
-        aml_ids = set()
-        for aml in self.purchase_line_id.invoice_lines:
-            if at_date and aml.date > at_date:
-                continue
-            if aml.move_id.state != "posted":
-                continue
-            aml_ids.add(aml.id)
-            if aml.move_type == "in_invoice":
-                aml_quantity += aml.product_uom_id._compute_quantity(
-                    aml.quantity, self.product_id.uom_id
-                )  # noqa
-                value += aml.currency_id._convert(
-                    aml.price_subtotal, self.company_id.currency_id, date=aml.date
-                )  # noqa
-            elif aml.move_type == "in_refund":
-                aml_quantity -= aml.product_uom_id._compute_quantity(
-                    aml.quantity, self.product_id.uom_id
-                )  # noqa
-                value -= aml.currency_id._convert(
-                    aml.price_subtotal, self.company_id.currency_id, date=aml.date
-                )  # noqa
+    #     aml_quantity = 0
+    #     value = 0
+    #     aml_ids = set()
+    #     for aml in self.purchase_line_id.invoice_lines:
+    #         if at_date and aml.date > at_date:
+    #             continue
+    #         if aml.move_id.state != "posted":
+    #             continue
+    #         aml_ids.add(aml.id)
+    #         if aml.move_type == "in_invoice":
+    #             aml_quantity += aml.product_uom_id._compute_quantity(
+    #                 aml.quantity, self.product_id.uom_id
+    #             )  # noqa
+    #             value += aml.currency_id._convert(
+    #                 aml.price_subtotal, self.company_id.currency_id, date=aml.date
+    #             )  # noqa
+    #         elif aml.move_type == "in_refund":
+    #             aml_quantity -= aml.product_uom_id._compute_quantity(
+    #                 aml.quantity, self.product_id.uom_id
+    #             )  # noqa
+    #             value -= aml.currency_id._convert(
+    #                 aml.price_subtotal, self.company_id.currency_id, date=aml.date
+    #             )  # noqa
 
-        if aml_quantity <= 0:
-            return valuation_data
+    #     if aml_quantity <= 0:
+    #         return valuation_data
 
-        # other_candidates_qty = 0
-        # for move in self.purchase_line_id.move_ids:
-        #     if move.product_id != self.product_id:
-        #         continue
-        #     if move.date > self.date or (move.date == self.date and move.id > self.id): # noqa
-        #         continue
-        #     if move.is_in or move.is_dropship:
-        #         other_candidates_qty += move._get_valued_qty() # noqa
-        #     elif move.is_out:
-        #         other_candidates_qty -= -move._get_valued_qty() # noqa
+    #     # other_candidates_qty = 0
+    #     # for move in self.purchase_line_id.move_ids:
+    #     #     if move.product_id != self.product_id:
+    #     #         continue
+    #     #     if move.date > self.date or (move.date == self.date and move.id > self.id): # noqa
+    #     #         continue
+    #     #     if move.is_in or move.is_dropship:
+    #     #         other_candidates_qty += move._get_valued_qty() # noqa
+    #     #     elif move.is_out:
+    #     #         other_candidates_qty -= -move._get_valued_qty() # noqa
 
-        # if self.product_uom.compare(aml_quantity, other_candidates_qty) <= 0: # noqa
-        #     return valuation_data
+    #     # if self.product_uom.compare(aml_quantity, other_candidates_qty) <= 0: # noqa
+    #     #     return valuation_data
 
-        # # Remove quantity from prior moves.
-        # value = value * ((aml_quantity - other_candidates_qty) / aml_quantity) # noqa
-        # aml_quantity = aml_quantity - other_candidates_qty
+    #     # # Remove quantity from prior moves.
+    #     # value = value * ((aml_quantity - other_candidates_qty) / aml_quantity) # noqa
+    #     # aml_quantity = aml_quantity - other_candidates_qty
 
-        if quantity >= aml_quantity:
-            valuation_data["quantity"] = aml_quantity
-            valuation_data["value"] = value
-        else:
-            valuation_data["quantity"] = quantity
-            valuation_data["value"] = quantity * value / aml_quantity  # noqa
-        account_moves = self.env["account.move.line"].browse(aml_ids).move_id  # noqa
-        valuation_data["description"] = self.env._(
-            "%(value)s for %(quantity)s %(unit)s from %(bills)s",  # noqa
-            value=self.company_currency_id.format(value),
-            quantity=aml_quantity,
-            unit=self.product_id.uom_id.name,  # noqa
-            bills=account_moves.mapped("display_name"),
-        )
-        return valuation_data
+    #     if quantity >= aml_quantity:
+    #         valuation_data["quantity"] = aml_quantity
+    #         valuation_data["value"] = value
+    #     else:
+    #         valuation_data["quantity"] = quantity
+    #         valuation_data["value"] = quantity * value / aml_quantity  # noqa
+    #     account_moves = self.env["account.move.line"].browse(aml_ids).move_id  # noqa
+    #     valuation_data["description"] = self.env._(
+    #         "%(value)s for %(quantity)s %(unit)s from %(bills)s",  # noqa
+    #         value=self.company_currency_id.format(value),
+    #         quantity=aml_quantity,
+    #         unit=self.product_id.uom_id.name,  # noqa
+    #         bills=account_moves.mapped("display_name"),
+    #     )
+    #     return valuation_data
