@@ -1,6 +1,7 @@
 # Copyright (C) 2020 Terrabit
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
 
+import contextlib
 import io
 import json
 import zipfile
@@ -8,10 +9,12 @@ from unittest.mock import MagicMock, patch
 
 from dateutil.relativedelta import relativedelta
 from lxml import etree
+from psycopg2 import IntegrityError
 
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, tagged
+from odoo.tools import mute_logger
 from odoo.tools.misc import file_path
 
 from .common import TestMessageSPV
@@ -432,6 +435,62 @@ class TestMessageSPV(TestMessageSPV):
         invoice.unlink()
 
         self.assertFalse(edi_document.exists())
+
+    def test_unlink_native_cron_spv_bill(self):
+        """Ciorna creată de cronul nativ „E-Factura: Synchronize with ANAF" se
+        poate șterge, deși nu are niciun mesaj SPV legat.
+
+        Cronul din l10n_ro_edi (funcție nouă în 19.0) creează el însuși ciorne de
+        facturi de furnizor din mesajele primite în SPV. Ele au doar
+        l10n_ro_edi_index + document EDI, fără l10n.ro.message.spv, deci scăpau
+        din filtrul de unlink, iar documentul (invoice_id required => ondelete
+        restrict) bloca ștergerea. Reprodus în producție (tichet #9311): „The
+        operation cannot be completed: Another model is using the record you are
+        trying to delete."
+        """
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.vendor.id,
+                "l10n_ro_edi_index": "6742375571",
+            }
+        )
+        edi_document = self.env["l10n_ro_edi.document"].create(
+            {"invoice_id": invoice.id, "state": "invoice_validated"}
+        )
+        # Traseul nativ nu creează mesaj SPV: exact configurația care bloca.
+        self.assertFalse(invoice.l10n_ro_message_spv_ids)
+        self.assertEqual(invoice.state, "draft")
+
+        invoice.unlink()
+
+        self.assertFalse(edi_document.exists())
+
+    def test_unlink_own_invoice_keeps_edi_document(self):
+        """Documentul EDI al unei facturi EMISE nu e atins de unlink.
+
+        Garda pe tipul documentului rămâne necesară după lărgirea filtrului:
+        documentele-audit ale facturilor trimise la e-Factura nu se curăță
+        niciodată. Ștergerea în sine poate să treacă sau să fie refuzată, după
+        cum e cheia `invoice_id` în baza respectivă (RESTRICT sau SET NULL);
+        indiferent de asta, documentul trebuie să supraviețuiască.
+        """
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.vendor.id,
+                "l10n_ro_edi_index": "6742375572",
+            }
+        )
+        edi_document = self.env["l10n_ro_edi.document"].create(
+            {"invoice_id": invoice.id, "state": "invoice_validated"}
+        )
+
+        with contextlib.suppress(IntegrityError), mute_logger("odoo.sql_db"):
+            with self.cr.savepoint():
+                invoice.unlink()
+
+        self.assertTrue(edi_document.exists())
 
     def test_edi_transaction_tracking(self):
         """Testează câmpurile de urmărire a tranzacțiilor EDI"""

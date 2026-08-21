@@ -599,6 +599,27 @@ XML-ul a fost validat de sistemul ANAF.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>19.0.2.12.0 (2026-08-21)</strong></p>
+<ul class="simple">
+<li>Vendor bills that the native <tt class="docutils literal">l10n_ro_edi</tt> cron created on its own
+can now be deleted cleanly. Since 19.0, the standard cron <em>E-Factura:
+Synchronize with ANAF</em> creates draft vendor bills from the SPV inbox
+by itself. Those bills carry an <tt class="docutils literal">l10n_ro_edi.document</tt> but no
+<tt class="docutils literal">l10n.ro.message.spv</tt>, so the unlink override did not recognize them
+as SPV-originated and the document was left in the way. What that
+looks like depends on the <tt class="docutils literal">invoice_id</tt> foreign key of the
+installation at hand, which Odoo does not write uniformly: on
+<tt class="docutils literal">ON DELETE RESTRICT</tt> the deletion is refused with the generic
+<em>“Another model is using the record you are trying to delete”</em>, which
+names no way out; on <tt class="docutils literal">ON DELETE SET NULL</tt> the deletion goes through
+but the document survives orphaned, still counted in the e-Invoice
+document lists. SPV origin is now recognized on both paths — a linked
+SPV message, or an <tt class="docutils literal">l10n_ro_edi_index</tt> on the bill — so the
+synthetic document is removed along with the bill in either case. The
+guards on document type (vendor bill or refund) and state (draft or
+cancelled) are unchanged, so audit documents of invoices this instance
+sent to the SPV are still never touched.</li>
+</ul>
 <p><strong>19.0.2.11.0 (2026-08-19)</strong></p>
 <ul class="simple">
 <li>The partner lookup by tax ID now accepts both spellings of the

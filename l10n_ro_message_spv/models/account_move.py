@@ -71,17 +71,32 @@ class AccountMove(models.Model):
         attachments = message_spv_ids.mapped("attachment_id")
         attachments.sudo().write({"res_id": False, "res_model": False})
         # Facturile de achizitie venite din SPV primesc un document
-        # l10n_ro_edi.document (vezi message_spv._confirm), al carui invoice_id e
-        # required => ondelete restrict. El blocheaza stergerea facturii (ex.
-        # achizitie ciorna sau anulata adusa automat din SPV). Documentul e
-        # sintetic, creat doar pentru controlul dedup-ului; urma reala SPV ramane
-        # pe l10n.ro.message.spv + atasamente. Il curatam strict pentru facturile
-        # de achizitie (factura/nota de credit) cu origine SPV, aflate in ciorna
-        # sau anulate (singurele stari in care Odoo permite oricum stergerea), ca
-        # sa nu atingem documentele-audit ale facturilor proprii trimise la
-        # e-Factura.
+        # l10n_ro_edi.document (vezi message_spv._confirm). El impiedica stergerea
+        # curata a facturii (ex. achizitie ciorna sau anulata adusa automat din
+        # SPV), in doua feluri, dupa cum arata cheia `invoice_id` in baza
+        # respectiva — Odoo nu o rescrie uniform intre instalari:
+        #  - ON DELETE RESTRICT (baze mai vechi, ex. o productie pe 19.0): stergerea
+        #    e refuzata cu eroarea generica "Another model is using the record you
+        #    are trying to delete", din care operatorul nu poate deduce nimic util;
+        #  - ON DELETE SET NULL (ce scrie ORM-ul la un update recent): stergerea
+        #    trece, dar documentul ramane orfan, cu invoice_id gol, numarat in
+        #    continuare in listele de documente e-Factura — eroare tacuta.
+        # Documentul e sintetic, creat doar pentru controlul dedup-ului; urma reala
+        # SPV ramane pe l10n.ro.message.spv + atasamente, deci il stergem noi, ceea
+        # ce rezolva ambele cazuri. Strict pentru facturile de achizitie (factura
+        # sau nota de credit) cu origine SPV, aflate in ciorna sau anulate
+        # (singurele stari in care Odoo permite oricum stergerea), ca sa nu atingem
+        # documentele-audit ale facturilor proprii trimise la e-Factura.
+        #
+        # Originea SPV se recunoaste pe doua trasee, nu doar pe al nostru:
+        #  - l10n_ro_message_spv_ids: factura a fost creata/legata din mesajul SPV
+        #    al acestui modul (buton "Create invoice");
+        #  - l10n_ro_edi_index: factura a fost creata automat de cronul nativ
+        #    "E-Factura: Synchronize with ANAF" (l10n_ro_edi, functie noua in 19.0),
+        #    caz in care nu exista niciun l10n.ro.message.spv legat, deci filtrul
+        #    nu o prindea si stergerea ei ramanea blocata.
         spv_moves = self.filtered(
-            lambda m: m.l10n_ro_message_spv_ids
+            lambda m: (m.l10n_ro_message_spv_ids or m.l10n_ro_edi_index)
             and m.move_type in ("in_invoice", "in_refund")
             and m.state in ("draft", "cancel")
         )

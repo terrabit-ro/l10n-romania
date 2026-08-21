@@ -223,6 +223,27 @@ Configuration
 Changelog
 =========
 
+**19.0.2.12.0 (2026-08-21)**
+
+- Vendor bills that the native ``l10n_ro_edi`` cron created on its own
+  can now be deleted cleanly. Since 19.0, the standard cron *E-Factura:
+  Synchronize with ANAF* creates draft vendor bills from the SPV inbox
+  by itself. Those bills carry an ``l10n_ro_edi.document`` but no
+  ``l10n.ro.message.spv``, so the unlink override did not recognize them
+  as SPV-originated and the document was left in the way. What that
+  looks like depends on the ``invoice_id`` foreign key of the
+  installation at hand, which Odoo does not write uniformly: on
+  ``ON DELETE RESTRICT`` the deletion is refused with the generic
+  *"Another model is using the record you are trying to delete"*, which
+  names no way out; on ``ON DELETE SET NULL`` the deletion goes through
+  but the document survives orphaned, still counted in the e-Invoice
+  document lists. SPV origin is now recognized on both paths — a linked
+  SPV message, or an ``l10n_ro_edi_index`` on the bill — so the
+  synthetic document is removed along with the bill in either case. The
+  guards on document type (vendor bill or refund) and state (draft or
+  cancelled) are unchanged, so audit documents of invoices this instance
+  sent to the SPV are still never touched.
+
 **19.0.2.11.0 (2026-08-19)**
 
 - The partner lookup by tax ID now accepts both spellings of the
