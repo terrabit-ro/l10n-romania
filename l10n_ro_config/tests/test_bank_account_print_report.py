@@ -13,10 +13,10 @@ class TestBankAccount(common.TransactionCase):
         super().setUpClass()
         cls.bank = cls.env["res.partner.bank"].create(
             {
-                "acc_number": "NL46ABNA0499998748",
+                "account_number": "NL46ABNA0499998748",
                 "partner_id": cls.env.ref("base.main_partner").id,
                 "company_id": cls.env.ref("base.main_company").id,
-                "bank_id": cls.env.ref("base.res_bank_1").id,
+                "bank_name": "Bank Test",
             }
         )
 
@@ -36,12 +36,9 @@ class TestBankAccount(common.TransactionCase):
                 "country_id": cls.env.ref("base.ro").id,
             }
         )
-        cls.bank_test = cls.env["res.bank"].create(
-            {
-                "name": "Bank 1",
-                "bic": "BIC 1",
-            }
-        )
+        # Odoo 20: ``res.bank`` was removed, the bank name and BIC are stored
+        # directly on ``res.partner.bank`` (``bank_name`` / ``bank_bic``).
+        cls.bank_test_vals = {"bank_name": "Bank 1", "bank_bic": "BIC 1"}
 
     # def test_journal_bank_creation(self):
     #     self.assertEqual(self.bank.l10n_ro_print_report, False)
@@ -86,20 +83,18 @@ class TestBankAccount(common.TransactionCase):
         )
         self.env["res.partner.bank"].create(
             {
-                "acc_number": "NL46ABNA0499998749",
+                "account_number": "NL46ABNA0499998749",
                 "partner_id": self.partner1.id,
                 "company_id": company.id,
-                "bank_id": self.bank_test.id,
-                "acc_type": "iban",
+                **self.bank_test_vals,
             }
         )
         self.env["res.partner.bank"].create(
             {
-                "acc_number": "NL46ABNA0499998749",
+                "account_number": "NL46ABNA0499998749",
                 "partner_id": self.partner2.id,
                 "company_id": company.id,
-                "bank_id": self.bank_test.id,
-                "acc_type": "iban",
+                **self.bank_test_vals,
             }
         )
 
@@ -115,7 +110,7 @@ class TestBankAccount(common.TransactionCase):
     #     )
     #     self.env["res.partner.bank"].create(
     #         {
-    #             "acc_number": "NL46ABNA0499998749",
+    #             "account_number": "NL46ABNA0499998749",
     #             "partner_id": self.partner1.id,
     #             "company_id": company2.id,
     #             "bank_id": self.bank_test.id,
@@ -125,7 +120,7 @@ class TestBankAccount(common.TransactionCase):
     #     with self.assertRaises(psycopg2.errors.UniqueViolation):
     #         self.env["res.partner.bank"].create(
     #             {
-    #                 "acc_number": "NL46ABNA0499998749",
+    #                 "account_number": "NL46ABNA0499998749",
     #                 "partner_id": self.partner1.id,
     #                 "company_id": company2.id,
     #                 "bank_id": self.bank_test.id,

@@ -46,8 +46,17 @@ class ResPartner(models.Model):
         ``_run_vat_checks`` re-attached the prefix. That made it impossible to
         store a tax ID without its country prefix - for instance a Hungarian
         11-digit adoszam, which VIES only accepts in its 8-digit EU form.
+
+        Odoo 20 merged ``base_vat`` into ``base`` and dropped the
+        ``res.partner._split_vat`` hook (``_run_vat_checks`` now calls
+        ``odoo.tools.business_data.split_vat``), so there is no ``super()``:
+        the Odoo 19 ``base_vat`` splitting is reproduced here for the callers
+        in the Romanian localization.
         """
-        vat_country, l10n_ro_vat_number = super()._split_vat(vat)
+        vat_country, l10n_ro_vat_number = "", vat
+        if vat and vat[:2].isalpha():
+            vat_country = vat[:2].upper()
+            l10n_ro_vat_number = vat[2:].replace(" ", "")
         if vat_country or not vat or not vat.isdigit():
             return vat_country, l10n_ro_vat_number
         country_code = self.country_id.code if len(self) == 1 else False
@@ -91,10 +100,6 @@ class ResPartner(models.Model):
         ):
             self.vat = self._get_ro_vat()
 
-    @api.depends("nrc", "vat", "country_id")
-    def _compute_company_registry(self):
-        res = super()._compute_company_registry()
-        for partner in self:
-            if partner.is_l10n_ro_record and partner.nrc:
-                partner.company_registry = partner.nrc
-        return res
+    # Odoo 20: ``res.partner.company_registry`` and its compute no longer exist,
+    # so the Odoo 19 override ``_compute_company_registry`` (which mirrored the
+    # NRC into ``company_registry``) was dropped. The NRC stays on ``nrc``.

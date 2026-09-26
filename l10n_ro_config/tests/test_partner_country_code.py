@@ -65,12 +65,15 @@ class TestPartnerVAT(TestPartnerVATSubjected):
                 "name": "Test Company",
             }
         )
+        # Odoo 20: is_company e calculat (entitate comercială + VAT)
         partner = self.env["res.partner"].create(
             {
                 "name": "Test Partner",
-                "is_company": True,
+                "vat": "4264242",
+                "country_id": self.env.ref("base.ro").id,
             }
         )
+        self.assertTrue(partner.is_company)
 
         partner_form = Form(partner)
         partner_form.name = "Test Partner"

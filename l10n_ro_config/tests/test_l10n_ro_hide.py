@@ -100,7 +100,7 @@ class TestL10nRoHide(AccountTestInvoicingCommon):
                 "res_id": action.id,
             }
         )
-        self.env.registry.clear_cache()
+        self.env.transaction.invalidate_ormcache()
         return action
 
     def _binding_ids(self, company):
