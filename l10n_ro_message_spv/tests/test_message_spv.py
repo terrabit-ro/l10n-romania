@@ -361,7 +361,7 @@ class TestMessageSPV(TestMessageSPV):
             {
                 "name": "test_attachment",
                 "type": "binary",
-                "datas": b"dGVzdA==",  # "test" codificat în base64
+                "raw": b"test",
             }
         )
 
@@ -1123,10 +1123,10 @@ class TestMessageSPV(TestMessageSPV):
             "attachment": attachment_xml,
             "name": attachment_xml.name,
             "filename": attachment_xml.name,
-            "content": attachment_xml.raw,
+            "content": attachment_xml.raw.content,
             "mimetype": attachment_xml.mimetype,
             "type": "xml",
-            "xml_tree": etree.fromstring(attachment_xml.raw),
+            "xml_tree": etree.fromstring(attachment_xml.raw.content),
         }
         # Identificăm tipul de fișier pentru a activa decoderul corect
         file_data["import_file_type"] = invoice._get_import_file_type(file_data)
@@ -1160,10 +1160,10 @@ class TestMessageSPV(TestMessageSPV):
             "attachment": attachment_xml_std,
             "name": attachment_xml_std.name,
             "filename": attachment_xml_std.name,
-            "content": attachment_xml_std.raw,
+            "content": attachment_xml_std.raw.content,
             "mimetype": attachment_xml_std.mimetype,
             "type": "xml",
-            "xml_tree": etree.fromstring(attachment_xml_std.raw),
+            "xml_tree": etree.fromstring(attachment_xml_std.raw.content),
         }
         file_data_std["import_file_type"] = invoice_std._get_import_file_type(
             file_data_std
@@ -1221,10 +1221,10 @@ class TestMessageSPV(TestMessageSPV):
             "attachment": attachment,
             "name": attachment.name,
             "filename": attachment.name,
-            "content": attachment.raw,
+            "content": attachment.raw.content,
             "mimetype": attachment.mimetype,
             "type": "xml",
-            "xml_tree": etree.fromstring(attachment.raw),
+            "xml_tree": etree.fromstring(attachment.raw.content),
         }
         file_data["import_file_type"] = invoice._get_import_file_type(file_data)
         invoice._extend_with_attachments([file_data])
@@ -1315,7 +1315,11 @@ class TestMessageSPV(TestMessageSPV):
             lambda line: line.product_id == product
         )
         self.assertFalse(manual_line._l10n_ro_is_spv_imported_line())
-        self.assertEqual(manual_line.name, "Produs adaugat manual")
+        # Odoo 20: `name` holds only the (purchase) description of the
+        # product, the product name is shown through the computed `label`
+        # (product display name + description) - standard core behaviour.
+        self.assertFalse(manual_line.name)
+        self.assertEqual(manual_line.label, "Produs adaugat manual")
         self.assertEqual(manual_line.price_unit, 55.0)
 
     # ------------------------------------------------------------------

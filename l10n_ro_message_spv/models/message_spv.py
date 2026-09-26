@@ -158,7 +158,7 @@ class MessageSPV(models.Model):
         if not attachment:
             return False, False
         try:
-            zip_ref = zipfile.ZipFile(io.BytesIO(attachment.raw))
+            zip_ref = zipfile.ZipFile(io.BytesIO(attachment.raw.content))
         except zipfile.BadZipFile:
             return False, False
         xml_files = [f for f in zip_ref.namelist() if "semnatura" not in f]
@@ -549,7 +549,7 @@ class MessageSPV(models.Model):
                 invoice_values
             )
             new_invoice = new_invoice.with_context(
-                disable_onchange_name_predictive=True
+                disable_onchange_name_predictive=["all"]
             )
             file_name, xml_bytes = message._get_xml_bytes()
             if not xml_bytes:
@@ -750,8 +750,9 @@ class MessageSPV(models.Model):
                     partner = partner_obj.create(
                         {
                             "name": message.cif,
+                            # Odoo 20: is_company is computed (commercial
+                            # entity + VAT), so the VAT makes it a company.
                             "vat": message.cif,
-                            "is_company": True,
                             "company_id": message.company_id.id,
                         }
                     )

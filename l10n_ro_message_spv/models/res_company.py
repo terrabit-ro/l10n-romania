@@ -130,9 +130,10 @@ class ResCompany(models.Model):
                     "name": "Unknown",
                     "company_id": company_id,
                     "country_id": self.env.ref("base.ro").id,
-                    "is_company": True,
                 }
             )
+            # Odoo 20: is_company is computed (commercial entity + VAT); it
+            # becomes True once the VAT is set.
             partner.write({"vat": cif_clean})
         return partner
 

@@ -8,15 +8,20 @@ class ProductProduct(models.Model):
         vendor_code = product_values.get("l10n_ro_vendor_code")
         if not vendor_code:
             return
-        invoice = (product_values.get("invoice_predictive") or {}).get("invoice")
-        partner = invoice.commercial_partner_id if invoice else None
-        if partner:
+        # Odoo 20: UBL import no longer passes ``invoice_predictive`` in the
+        # product values; the vendor comes as ``vendor_partner_id`` (the
+        # commercial partner of the counterpart).
+        partner_id = product_values.get("vendor_partner_id")
+        if not partner_id:
+            invoice = (product_values.get("invoice_predictive") or {}).get("invoice")
+            partner_id = invoice.commercial_partner_id.id if invoice else None
+        if partner_id:
             return {
                 "criteria": [
                     {
                         "domain": [
                             ("seller_ids.product_code", "=", vendor_code),
-                            ("seller_ids.partner_id", "child_of", partner.id),
+                            ("seller_ids.partner_id", "child_of", partner_id),
                         ]
                     },
                     # Fallback: search only by vendor code if partner doesn't match
