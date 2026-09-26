@@ -47,6 +47,7 @@ repos:
     hooks:
       # update the NOT INSTALLABLE ADDONS section above
       - id: oca-update-pre-commit-excluded-addons
+        additional_dependencies: ["manifestoo-core>=1.16.1"]
       - id: oca-fix-manifest-website
         args: ["https://github.com/OCA/l10n-romania"]
       - id: oca-gen-addon-readme
@@ -58,7 +59,9 @@ repos:
           - --if-source-changed
           - --keep-source-digest
           - --convert-fragments-to-markdown
+        additional_dependencies: ["manifestoo-core>=1.16.1"]
       - id: oca-gen-external-dependencies
+        additional_dependencies: ["manifestoo-core>=1.16.1"]
   - repo: https://github.com/OCA/odoo-pre-commit-hooks
     rev: v0.1.6
     hooks:
