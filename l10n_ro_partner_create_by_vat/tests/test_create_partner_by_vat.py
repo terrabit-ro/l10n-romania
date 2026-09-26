@@ -27,7 +27,7 @@ class TestCreatePartnerBase(AccountTestInvoicingCommon):
         cls.mainpartner = cls.mainpartner.with_context(anaf_data=cls.anaf_data)
 
     @staticmethod
-    def _check_vies_iap(record):
+    def _check_vies_validity_iap(record):
         return "valid" if record.vat == "BE0477472701" else "unassigned"
 
     @classmethod
@@ -51,7 +51,9 @@ class TestCreatePartner(TestCreatePartnerBase):
                 res = self.mainpartner._Anaf_to_Odoo(result)
                 self.assertEqual(res["name"], "FOREST AND BIOMASS ROMÂNIA S.A.")
                 self.assertEqual(res["l10n_ro_vat_subjected"], True)
-                self.assertEqual(res["company_type"], "company")
+                # Odoo 20: company_type removed, is_company is computed from vat
+                self.assertNotIn("company_type", res)
+                self.assertEqual(res["vat"], "RO" + cod)
                 self.assertEqual(res["nrc"], "J2012002622359")
                 self.assertEqual(res["street"], "Ferma 5-6")
                 self.assertEqual(res["street2"], "")
@@ -125,6 +127,8 @@ class TestCreatePartner(TestCreatePartnerBase):
             self.assertEqual(mainpartner.state_id, self.env.ref("base.RO_TM"))
             self.assertEqual(mainpartner.city, "Sat Giulvăz Com Giulvăz")
             self.assertEqual(mainpartner.country_id, self.env.ref("base.ro"))
+            # Odoo 20: is_company is computed from vat (company_type removed)
+            self.assertTrue(mainpartner.is_company)
 
         # Check inactive vatnumber
         cod = "27193515"
@@ -202,9 +206,9 @@ class TestCreatePartner(TestCreatePartnerBase):
 
     def test_anaf_exception(self):
         """Check anaf exception."""
-        set_param = self.env["ir.config_parameter"].sudo().set_param
+        set_str = self.env["ir.config_parameter"].sudo().set_str
         anaf_url = "https://webservicesp.anaf.ro/PlatitorTvaRest/api/v7/ws/tvaERROR"
-        set_param("l10n_ro_partner_create_by_vat.anaf_url", anaf_url)
+        set_str("l10n_ro_partner_create_by_vat.anaf_url", anaf_url)
         cod = "20603502"
         mainpartner = self.mainpartner
         mainpartner.country_id = self.env.ref("base.ro")
@@ -222,9 +226,13 @@ class TestCreatePartner(TestCreatePartnerBase):
             self.assertTrue(res.get("warning"))
 
     def test_vat_vies(self):
+        # Odoo 20: base_vat merged into base; the VIES check lives in
+        # l10n_eu_account_vies (_check_vies_iap -> _check_vies_validity_iap).
+        # The patch is a no-op when that module is not installed.
         with patch(
-            "odoo.addons.base_vat.models.res_partner.ResPartner._check_vies_iap",
-            TestCreatePartnerBase._check_vies_iap,
+            "odoo.addons.l10n_eu_account_vies.models.res_partner."
+            "ResPartner._check_vies_validity_iap",
+            TestCreatePartnerBase._check_vies_validity_iap,
         ):
             self.env.company.vat_check_vies = True
             partner_odoo = Form(self.env["res.partner"])

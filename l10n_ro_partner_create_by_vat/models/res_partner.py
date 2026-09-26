@@ -171,12 +171,12 @@ class ResPartner(models.Model):
             if result:
                 return anaf_error, test_data[cod]
 
-        get_param = self.env["ir.config_parameter"].sudo().get_param
-        anaf_url = get_param("l10n_ro_partner_create_by_vat.anaf_url", ANAF_URL)
-        anaf_api_key_header_tag = get_param(
+        get_str = self.env["ir.config_parameter"].sudo().get_str
+        anaf_url = get_str("l10n_ro_partner_create_by_vat.anaf_url", ANAF_URL)
+        anaf_api_key_header_tag = get_str(
             "l10n_ro_partner_create_by_vat.anaf_api_key_header_tag", "x-api-key"
         )
-        anaf_api_key = get_param("l10n_ro_partner_create_by_vat.anaf_api_key", "")
+        anaf_api_key = get_str("l10n_ro_partner_create_by_vat.anaf_api_key", "")
         if anaf_api_key:
             headers.update({anaf_api_key_header_tag: anaf_api_key})
         if not data:
@@ -235,10 +235,12 @@ class ResPartner(models.Model):
         ):
             # if no name means that anaf didn't return anything
             return {}
+        # Odoo 20: ``company_type`` was removed and ``is_company`` is computed
+        # (``commercial_partner_id == partner and has_vat``); the partner becomes
+        # a company through the ``vat`` value written below.
         res = {
             "name": odoo_result["denumire"].upper(),
             "l10n_ro_vat_subjected": odoo_result.get("scpTVA"),
-            "company_type": "company",
         }
 
         odoo_result = self.get_result_address(odoo_result)
@@ -281,7 +283,7 @@ class ResPartner(models.Model):
             elif field[2] == "write_if_empty&add_date" and anaf_value:
                 # we are only writing if is not already a value
                 if not getattr(self, field[0], None):
-                    now = fields.datetime.now()
+                    now = fields.Datetime.now()
                     res[field[0]] = (f"UTC {now}:") + anaf_value
             elif field[2] == "write_if_empty" and anaf_value:
                 if not getattr(self, field[0], None):
