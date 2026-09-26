@@ -127,11 +127,7 @@ class ResPartner(models.Model):
                 ("l10n_ro_vat_payment_check_date", "<", date.today()),
             ]
         )
-        batch_size = int(
-            ir_config.get_param(
-                "l10n_ro_vat_on_payment.partner_batch_size", default="1000"
-            )
-        )
+        batch_size = ir_config.get_int("l10n_ro_vat_on_payment.partner_batch_size", 1000)
         partner_batch = partners[:batch_size]
         partner_batch.check_vat_on_payment()
         if len(partners) > batch_size:
