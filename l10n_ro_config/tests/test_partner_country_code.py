@@ -75,11 +75,25 @@ class TestPartnerVAT(TestPartnerVATSubjected):
         )
         self.assertTrue(partner.is_company)
 
-        partner_form = Form(partner)
-        partner_form.name = "Test Partner"
-        partner_form.l10n_ro_vat_subjected = True
+        def post(url, **kwargs):
+            response = Mock()
+            response.status_code = 200
+            response._content = b"ok"
+            return response
 
-        partner_form = Form(partner.with_company(test_company))
-        partner_form.name = "Test Partner"
-        with self.assertRaises(AssertionError):
-            partner_form.l10n_ro_vat_subjected = True
+        # With a RO VAT on the partner, the form onchanges of modules extending
+        # res.partner (e.g. l10n_ro_partner_create_by_vat) query ANAF: mock the
+        # request so the test never reaches the network.
+        with mute_logger("odoo.tests.form.onchange"):
+            with (
+                patch.object(requests, "post", post),
+                patch.object(requests.Session, "post", post),
+            ):
+                partner_form = Form(partner)
+                partner_form.name = "Test Partner"
+                partner_form.l10n_ro_vat_subjected = True
+
+                partner_form = Form(partner.with_company(test_company))
+                partner_form.name = "Test Partner"
+                with self.assertRaises(AssertionError):
+                    partner_form.l10n_ro_vat_subjected = True
