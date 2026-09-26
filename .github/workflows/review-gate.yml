@@ -3,6 +3,7 @@ name: review-gate
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["19.0"]
   pull_request_review:
     types: [submitted, dismissed]
 
@@ -15,6 +16,8 @@ concurrency:
 
 jobs:
   review-gate:
+    # doar PR-urile spre 19.0 (pull_request_review nu acceptă filtru pe branch)
+    if: github.event.pull_request.base.ref == '19.0'
     runs-on: ubuntu-latest
     steps:
       - name: Count approving reviews from any reviewer
