@@ -1,0 +1,2 @@
+id,name,model_id,group_id/id,operation,domain
+access_l10n_ro_res_partner_anaf,l10n.ro.res.partner.anaf,l10n.ro.res.partner.anaf,base.group_user,crud,
