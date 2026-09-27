@@ -42,6 +42,17 @@ class ProductProduct(models.Model):
             )
         return res
 
+    def _correct_inventory_valuation(self, from_date):
+        """20.0 replays the valuation from ``from_date`` (cost method change,
+        reset of a done move) and rewrites the value of the outgoing moves
+        already done. The Romanian entries are posted from those values when
+        the move is done and are not rewritten, so, as up to 19.0, the done
+        moves of the Romanian products keep their value."""
+        ro_products = self.filtered("is_l10n_ro_record")
+        return super(ProductProduct, self - ro_products)._correct_inventory_valuation(
+            from_date
+        )
+
     def _get_remaining_moves_ro(self, lot=None, at_date=None, location=None):
         """Returns a dictionary of stock moves and their remaining quantities
         for each product in self."""
@@ -52,7 +63,7 @@ class ProductProduct(models.Model):
             moves, remaining_qty = product._run_fifo_get_stack(
                 lot=lot, at_date=at_date, location=location
             )
-            moves = self.env["stock.move"].concat(*moves)
+            moves = self.env["stock.move"].concat(moves)
             if not moves:
                 continue
             qty_by_move = {m: m.quantity for m in moves[1:]}
@@ -79,18 +90,18 @@ class ProductProduct(models.Model):
         total_value = sum(item["value"] for item in fifo_list)
         return total_value
 
-    def _run_fifo(self, quantity, lot=None, at_date=None, location=None):
+    def _get_fifo_value(self, quantity, lot=None, stack_size_extra_qty=0):
         """Returns the total *value* (float) for the next outgoing product
         based on the qty given as argument.
 
-        This keeps the core ``_run_fifo`` contract: core callers
-        (``_run_fifo_batch``, ``account.move.line``, ``stock.move``,
-        ``stock.lot``) divide or assign the result as a float. The RO
-        ``fifo_per_location`` flow derives that value from the per-location
-        FIFO layers (see ``_run_fifo_layers``); every other case falls back
-        to core. This must not return a list, otherwise a RO product reaching
-        a core caller (e.g. in a multi-company read where the active company
-        has ``fifo_per_location`` set) crashes with ``list / float``.
+        20.0 renamed the per-quantity FIFO valuation of 19.0 ``_run_fifo``
+        (``_run_fifo`` is now the batch valuation of the stock). This keeps
+        the core contract: core callers (``account.move.line``,
+        ``stock.move``, ``stock.lot``) divide or assign the result as a
+        float. The RO ``fifo_per_location`` flow derives that value from the
+        per-location FIFO layers (see ``_run_fifo_layers``); every other case
+        falls back to core. This must not return a list, otherwise a RO
+        product reaching a core caller crashes with ``list / float``.
         """
         self.ensure_one()
         is_ro_fifo = (
@@ -99,12 +110,15 @@ class ProductProduct(models.Model):
             and not self.lot_valuated
         )
         if not is_ro_fifo:
-            return super()._run_fifo(
-                quantity, lot=lot, at_date=at_date, location=location
+            return super()._get_fifo_value(
+                quantity, lot=lot, stack_size_extra_qty=stack_size_extra_qty
             )
-        return self._run_fifo_value(
-            quantity, lot=lot, at_date=at_date, location=location
-        )
+        product = self
+        if stack_size_extra_qty:
+            product = self.with_context(
+                l10n_ro_fifo_stack_extra_qty=stack_size_extra_qty
+            )
+        return product._run_fifo_value(quantity, lot=lot)
 
     def _run_fifo_layers(self, quantity, lot=None, at_date=None, location=None):
         """Returns the list of quantity/value slices (dicts with ``move_id``,
@@ -127,9 +141,7 @@ class ProductProduct(models.Model):
                 {
                     "move_id": False,
                     "quantity": quantity,
-                    "value": super()._run_fifo(
-                        quantity, lot=lot, at_date=at_date, location=location
-                    ),
+                    "value": super()._get_fifo_value(quantity, lot=lot),
                     "description": self.display_name,
                 }
             ]
@@ -160,7 +172,10 @@ class ProductProduct(models.Model):
                 "description": move.display_name,
             }
             if at_date:
-                move_values = move._get_value_data(at_date=at_date)
+                # 20.0 dropped the valuation at a past date
+                # (`_get_value_data(at_date=...)`): the manual values of a
+                # move are taken as they are now.
+                move_values = move._get_value_data()
                 move_values["move_id"] = move.id
             rem_qty = move_values["quantity"]
             move_value = move_values["value"]
@@ -202,15 +217,21 @@ class ProductProduct(models.Model):
         return fifo_list
 
     def _run_fifo_get_stack(self, lot=None, at_date=None, location=None):
+        """FIFO stack of the incoming moves making up the stock, optionally
+        restricted to one ``location`` (RO ``fifo_per_location``).
+
+        Up to 19.0 this extended the core method of the same name; 20.0
+        replaced it with ``_get_fifo_stack``, which has no ``location``. The
+        method is kept, with the 19.0 signature and result, for this module
+        and the ones depending on it (storage sheet, inventory closing).
+        """
         ro_fifo_products = self.filtered(
             lambda p: self.env.company.fifo_per_location
             and p.cost_method == "fifo"
             and not p.lot_valuated
         )
         if not ro_fifo_products:
-            return super()._run_fifo_get_stack(
-                lot=lot, at_date=at_date, location=location
-            )
+            return self._get_fifo_stack(lot=lot, at_date=at_date)
 
         # Request-scoped cache. Callers (reports, batched _compute_value)
         # can pre-populate ``fifo_stack_cache={}`` in context to share
@@ -223,11 +244,13 @@ class ProductProduct(models.Model):
                 location.id if location else None,
                 lot.id if lot else None,
                 at_date,
+                self.env.context.get("l10n_ro_fifo_stack_extra_qty", 0),
             )
             if cache_key in cache:
                 return cache[cache_key]
 
-        external_location = location and location.is_valued_external
+        # 20.0: `stock.location.is_valued_external` is gone
+        external_location = location and not location._should_be_valued()
         fifo_stack = []
         fifo_stack_size = 0
         if location:
@@ -250,6 +273,8 @@ class ProductProduct(models.Model):
                 .with_context(to_date=at_date)
                 .qty_available
             )
+            # outgoing moves valued once done (see `_get_fifo_value`)
+            fifo_stack_size += self.env.context.get("l10n_ro_fifo_stack_extra_qty", 0)
         # Use UoM rounding for the comparison so fractional quantities
         # (kg, m, etc.) are handled correctly.
         if self.uom_id.compare(fifo_stack_size, 0) <= 0:

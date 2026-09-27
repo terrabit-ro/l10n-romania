@@ -8,7 +8,7 @@ import csv
 import logging
 import os
 
-from odoo.tests import Form, tagged
+from odoo.tests import tagged
 from odoo.tools import float_compare
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -476,20 +476,15 @@ class TestROStockCommon(AccountTestInvoicingCommon):
                 total_qty = sum(quants.mapped("quantity"))
                 total_value = sum(quants.mapped("value"))
                 self.assertEqual(
-                    float_compare(
-                        total_qty,
-                        float(vals.get("qty", 0)),
-                        precision_rounding=product.uom_id.rounding,
-                    ),
+                    product.uom_id.compare(total_qty, float(vals.get("qty", 0))),
                     0,
                     f"Stock quant quantity for {product.name} expected {vals.get('qty', 0)}, got {total_qty}",  # noqa
                 )
                 if product != self.product_avg:
                     self.assertEqual(
-                        float_compare(
+                        product.uom_id.compare(
                             sum(stock_moves.mapped("remaining_qty")),
                             float(vals.get("qty", 0)),
-                            precision_rounding=product.uom_id.rounding,
                         ),
                         0,
                         f"Stock Move Remaining quantity for {product.name} expected {vals.get('qty', 0)}, got {sum(stock_moves.mapped('remaining_qty'))}",  # noqa
@@ -656,6 +651,20 @@ class TestROStockCommon(AccountTestInvoicingCommon):
             price = values.get("inv_price2")  # None dacă nu există
         return price
 
+    def _l10n_ro_create_return(self, picking, quantity, stock_lot=None):
+        """Return ``quantity`` of the (single product) ``picking``.
+
+        20.0 dropped the ``stock.return.picking`` wizard: the return is made
+        with ``stock.picking._create_return()``, the quantity being set on the
+        return moves, like the wizard did on its lines.
+        """
+        return_pick = picking._create_return()
+        return_pick.move_ids.write({"product_uom_qty": quantity, "to_refund": True})
+        if stock_lot:
+            lot = getattr(self, stock_lot)
+            return_pick.move_ids.write({"lot_ids": [(6, 0, [lot.id])]})
+        return return_pick
+
     def create_sale_order(self, values):
         so_values = self.get_references_from_values(values)
         order_line = [
@@ -738,25 +747,12 @@ class TestROStockCommon(AccountTestInvoicingCommon):
                 # Create return to initial reception
                 picking = sale.picking_ids.filtered(lambda x: x.state == "done")
                 if picking:
-                    stock_return_picking_form = Form(
-                        self.env["stock.return.picking"].with_context(
-                            active_ids=picking.ids,
-                            active_id=picking.ids[0],
-                            active_model="stock.picking",
-                        )
+                    # 20.0: the stock.return.picking wizard is gone
+                    return_pick = self._l10n_ro_create_return(
+                        picking[:1],
+                        stock_qty,
+                        stock_lot,
                     )
-                    return_wiz = stock_return_picking_form.save()
-                    return_wiz.product_return_moves.write(
-                        {
-                            "quantity": stock_qty,
-                            "to_refund": True,
-                        }
-                    )
-                    if stock_lot:
-                        lot = getattr(self, stock_lot)
-                        return_wiz.product_return_moves.write({"lot_id": lot.id})
-                    res = return_wiz.action_create_returns()
-                    return_pick = self.env["stock.picking"].browse(res["res_id"])
                     if values.get("notice"):
                         return_pick.l10n_ro_notice = values.get("notice")
                     return_pick.action_confirm()
@@ -948,25 +944,12 @@ class TestROStockCommon(AccountTestInvoicingCommon):
                 stock_qty = -stock_qty
                 picking = purchase.picking_ids.filtered(lambda x: x.state == "done")
                 if picking:
-                    stock_return_picking_form = Form(
-                        self.env["stock.return.picking"].with_context(
-                            active_ids=picking.ids,
-                            active_id=picking.ids[0],
-                            active_model="stock.picking",
-                        )
+                    # 20.0: the stock.return.picking wizard is gone
+                    return_pick = self._l10n_ro_create_return(
+                        picking[:1],
+                        stock_qty,
+                        stock_lot,
                     )
-                    return_wiz = stock_return_picking_form.save()
-                    return_wiz.product_return_moves.write(
-                        {
-                            "quantity": stock_qty,
-                            "to_refund": True,
-                        }
-                    )
-                    if stock_lot:
-                        lot = getattr(self, stock_lot)
-                        return_wiz.product_return_moves.write({"lot_id": lot.id})
-                    res = return_wiz.action_create_returns()
-                    return_pick = self.env["stock.picking"].browse(res["res_id"])
                     return_pick.action_confirm()
                     return_pick.action_assign()
                     return_pick.move_ids._set_quantity_done(stock_qty)
@@ -1085,25 +1068,8 @@ class TestROStockCommon(AccountTestInvoicingCommon):
         if step == 2 and stock_qty < 0:
             # Create return to initial transfer
             stock_qty = -stock_qty
-            stock_return_picking_form = Form(
-                self.env["stock.return.picking"].with_context(
-                    active_ids=[picking.id],
-                    active_id=picking.id,
-                    active_model="stock.picking",
-                )
-            )
-            return_wiz = stock_return_picking_form.save()
-            return_wiz.product_return_moves.write(
-                {
-                    "quantity": stock_qty,
-                    "to_refund": True,
-                }
-            )
-            if stock_lot:
-                lot = getattr(self, stock_lot)
-                return_wiz.product_return_moves.write({"lot_id": lot.id})
-            res = return_wiz.action_create_returns()
-            return_pick = self.env["stock.picking"].browse(res["res_id"])
+            # 20.0: the stock.return.picking wizard is gone
+            return_pick = self._l10n_ro_create_return(picking, stock_qty, stock_lot)
             return_pick.action_confirm()
             return_pick.action_assign()
             return_pick.move_ids._set_quantity_done(stock_qty)
@@ -1130,7 +1096,7 @@ class TestROStockCommon(AccountTestInvoicingCommon):
             "location_id": transfer_values.get("location").id,
             "location_dest_id": self.transit_loc.id,
             "product_id": transfer_values.get("product_id").id,
-            "product_uom": transfer_values.get("product_id").uom_id.id,
+            "uom_id": transfer_values.get("product_id").uom_id.id,
             "product_uom_qty": transfer_values.get("qty", 1),
             "route_ids": [(4, self.transit_route.id)],
         }
@@ -1188,25 +1154,8 @@ class TestROStockCommon(AccountTestInvoicingCommon):
         if step == 2 and stock_qty < 0:
             # Create return to initial transfer
             stock_qty = -stock_qty
-            stock_return_picking_form = Form(
-                self.env["stock.return.picking"].with_context(
-                    active_ids=[picking.id],
-                    active_id=picking.id,
-                    active_model="stock.picking",
-                )
-            )
-            return_wiz = stock_return_picking_form.save()
-            return_wiz.product_return_moves.write(
-                {
-                    "quantity": stock_qty,
-                    "to_refund": True,
-                }
-            )
-            if stock_lot:
-                lot = getattr(self, stock_lot)
-                return_wiz.product_return_moves.write({"lot_id": lot.id})
-            res = return_wiz.action_create_returns()
-            return_pick = self.env["stock.picking"].browse(res["res_id"])
+            # 20.0: the stock.return.picking wizard is gone
+            return_pick = self._l10n_ro_create_return(picking, stock_qty, stock_lot)
             return_pick.action_confirm()
             return_pick.action_assign()
             return_pick.move_ids._set_quantity_done(stock_qty)
@@ -1230,7 +1179,7 @@ class TestROStockCommon(AccountTestInvoicingCommon):
             "location_id": transfer_values.get("location").id,
             "location_dest_id": transfer_values.get("location1").id,
             "product_id": transfer_values.get("product_id").id,
-            "product_uom": transfer_values.get("product_id").uom_id.id,
+            "uom_id": transfer_values.get("product_id").uom_id.id,
             "product_uom_qty": stock_qty,
         }
         if stock_lot:
@@ -1270,25 +1219,8 @@ class TestROStockCommon(AccountTestInvoicingCommon):
         if step == 2 and stock_qty < 0:
             # Create return to initial operation
             stock_qty = -stock_qty
-            stock_return_picking_form = Form(
-                self.env["stock.return.picking"].with_context(
-                    active_ids=[picking.id],
-                    active_id=picking.id,
-                    active_model="stock.picking",
-                )
-            )
-            return_wiz = stock_return_picking_form.save()
-            return_wiz.product_return_moves.write(
-                {
-                    "quantity": stock_qty,
-                    "to_refund": True,
-                }
-            )
-            if stock_lot:
-                lot = getattr(self, stock_lot)
-                return_wiz.product_return_moves.write({"lot_id": lot.id})
-            res = return_wiz.action_create_returns()
-            return_pick = self.env["stock.picking"].browse(res["res_id"])
+            # 20.0: the stock.return.picking wizard is gone
+            return_pick = self._l10n_ro_create_return(picking, stock_qty, stock_lot)
             return_pick.action_confirm()
             return_pick.action_assign()
             return_pick.move_ids._set_quantity_done(stock_qty)
@@ -1356,7 +1288,7 @@ class TestROStockCommon(AccountTestInvoicingCommon):
             "location_dest_id": location_dest,
             "picking_id": picking.id,
             "product_id": product.id,
-            "product_uom": product.uom_id.id,
+            "uom_id": product.uom_id.id,
             "product_uom_qty": picking_values.get("qty", 1),
         }
         if stock_lot:

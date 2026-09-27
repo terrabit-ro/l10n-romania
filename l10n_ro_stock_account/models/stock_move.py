@@ -86,16 +86,16 @@ class StockMove(models.Model):
                 or move.product_id.categ_id.property_stock_valuation_account_id
             )
             transfer_account = account
+            # 20.0: `stock.move.value` is negative on outgoing moves; the
+            # Romanian rules below were written for the 19.0 magnitude.
+            ro_value = move._get_l10n_ro_value("value")
             if move.product_id.categ_id.l10n_ro_stock_account_change:
                 if (
-                    move.value > 0
+                    ro_value > 0
                     and loc_dest.l10n_ro_property_stock_valuation_account_id
                 ):
                     account = loc_dest.l10n_ro_property_stock_valuation_account_id
-                if (
-                    move.value < 0
-                    and loc_src.l10n_ro_property_stock_valuation_account_id
-                ):
+                if ro_value < 0 and loc_src.l10n_ro_property_stock_valuation_account_id:
                     account = loc_src.l10n_ro_property_stock_valuation_account_id
                 if loc_src.usage == "internal" and loc_dest.usage == "transit":
                     if loc_dest.l10n_ro_property_stock_valuation_account_id:
@@ -108,7 +108,7 @@ class StockMove(models.Model):
                         lambda line: line.account_id.code or ""
                     ):
                         if aml.account_id.code and aml.account_id.code[0] in ["2", "3"]:
-                            if round(aml.balance, 2) == round(move.value, 2):
+                            if round(aml.balance, 2) == round(ro_value, 2):
                                 account = aml.account_id
                                 break
             move.l10n_ro_account_id = account
@@ -289,8 +289,42 @@ class StockMove(models.Model):
                 res |= move_line
         return res
 
-    def _set_value(self, correction_quantity=None):
+    def write(self, vals):
+        # 20.0: changing the date of a valued move replays the valuation of
+        # every later move (`_set_value(recompute_date=...)`). Up to 19.0 a
+        # date change left the values alone, and the Romanian entries are
+        # posted from those values, so keep the values of Romanian moves.
+        if vals.get("date") and any(self.mapped("is_l10n_ro_record")):
+            self = self.with_context(l10n_ro_skip_revaluation=True)  # noqa: PLW0642
+        return super().write(vals)
+
+    def _set_value(self, recompute_date=None, skip_check=False):
         """Set the value of the move"""
+        ro_moves = self.filtered("is_l10n_ro_record")
+        other_moves = self - ro_moves
+        res = None
+        if other_moves:
+            res = super(StockMove, other_moves)._set_value(
+                recompute_date=recompute_date, skip_check=skip_check
+            )
+        if not ro_moves:
+            return res
+        if recompute_date and (
+            self.env.context.get("l10n_ro_skip_revaluation")
+            or self.env.context.get("l10n_ro_defer_ml_valuation")
+        ):
+            # date change, product cost update (`product.value` without
+            # move), or lines edited (revalued by
+            # `stock.move.line._l10n_ro_update_stock_move_value`)
+            return res
+        # 20.0 replays the valuation of the moves following a revalued one
+        # (and rewrites the value of the outgoing moves already done) through
+        # `_correct_inventory_valuation`. The Romanian accounting entries are
+        # posted from the move values when the move is done and are not
+        # rewritten afterwards, so, as up to 19.0, only the given moves are
+        # (re)valued; the negative stock is compensated by
+        # `_fifo_neg_apply_compensation`.
+        #
         # Dropship moves gain nothing from core's own _set_value (they never
         # satisfy its is_in/_is_out branches), but core still adds their
         # product to `products_to_recompute` (keyed on `is_dropship or
@@ -300,15 +334,12 @@ class StockMove(models.Model):
         # includes `is_dropship` moves), which retroactively reprices
         # unrelated quants already on hand. Route dropship moves around
         # core's _set_value entirely and value them ourselves below instead.
-        ro_dropship_moves = self.filtered(
-            lambda m: m.is_l10n_ro_record
-            and m.l10n_ro_move_type in ("dropshipped", "dropshipped_return")
+        ro_dropship_moves = ro_moves.filtered(
+            lambda m: m.l10n_ro_move_type in ("dropshipped", "dropshipped_return")
         )
-        res = super(StockMove, self - ro_dropship_moves)._set_value(
-            correction_quantity=correction_quantity
-        )
-        ro_internal_moves = self.filtered(
-            lambda m: m.is_l10n_ro_record and m.l10n_ro_move_type == "internal_transfer"
+        res = super(StockMove, ro_moves - ro_dropship_moves)._set_value(skip_check=True)
+        ro_internal_moves = ro_moves.filtered(
+            lambda m: m.l10n_ro_move_type == "internal_transfer"
         )
         for move in ro_internal_moves:
             # Since we create double entry throught transfer account
@@ -318,6 +349,28 @@ class StockMove(models.Model):
         for move in ro_dropship_moves.filtered(lambda m: not m.value):
             move.value = move.sudo()._get_value()
         return res
+
+    def _clear_journal_entries(self):
+        # 20.0 can reset a done move (e.g. a manufacturing order back to in
+        # progress): drop the Romanian extra entries along with the main one.
+        extra_moves = self.l10n_ro_extra_account_move_ids
+        res = super()._clear_journal_entries()
+        if extra_moves:
+            extra_moves.sudo().button_draft()
+            extra_moves.sudo().unlink()
+        return res
+
+    def _l10n_ro_correct_out_value(self, correction_quantity):
+        """Revalue a done outgoing move whose quantity changed by
+        ``correction_quantity`` (19.0 `_set_value(correction_quantity=...)`):
+        the correction is valued at the move's current unit value, the stock
+        it was taken from being already consumed."""
+        for move in self:
+            previous_qty = move.quantity - correction_quantity
+            if previous_qty:
+                move.value += move.value / previous_qty * correction_quantity
+            else:
+                move._set_value()
 
     def _l10n_ro_get_source_account_unit_cost(self):
         """Unit cost the source warehouse account actually holds for the product.
@@ -392,7 +445,7 @@ class StockMove(models.Model):
             return None
         return unit_cost
 
-    def _get_value_from_std_price(self, quantity, std_price=False, at_date=None):
+    def _get_value_from_std_price(self, quantity, std_price=False):
         """Value an internal transfer at the cost held by the source warehouse.
 
         Only the last step of ``_get_value_data`` is replaced, so a value coming
@@ -405,7 +458,6 @@ class StockMove(models.Model):
         """
         if (
             not std_price
-            and not at_date
             and self.is_l10n_ro_record
             and self.l10n_ro_move_type == "internal_transfer"
             and self.product_id.cost_method != "fifo"
@@ -422,15 +474,14 @@ class StockMove(models.Model):
                         uom=self.product_id.uom_id.name,
                     ),
                 }
-        return super()._get_value_from_std_price(
-            quantity, std_price=std_price, at_date=at_date
-        )
+        return super()._get_value_from_std_price(quantity, std_price=std_price)
 
-    def _get_valued_qty(self, lot=None):
+    def _get_valued_qty(self, lot=None, signed=False):
         self.ensure_one()
         if self.is_l10n_ro_record and self.l10n_ro_move_type == "internal_transfer":
+            # both incoming and outgoing, valued as incoming: positive
             return self.product_qty
-        return super()._get_valued_qty(lot=lot)
+        return super()._get_valued_qty(lot=lot, signed=signed)
 
     def _should_create_account_move(self):
         # For Romania we should create account moves for all stock moves
@@ -571,9 +622,7 @@ class StockMove(models.Model):
         company_currency = self.company_id.currency_id
         po_line = self.purchase_line_id if "purchase_line_id" in self._fields else False
         if po_line and po_line.currency_id and po_line.currency_id != company_currency:
-            qty = self.product_uom._compute_quantity(
-                self.quantity, po_line.product_uom_id
-            )
+            qty = self.uom_id._compute_quantity(self.quantity, po_line.uom_id)
             return po_line.currency_id, po_line.price_unit * qty
         return company_currency, value
 
@@ -615,6 +664,13 @@ class StockMove(models.Model):
     def _get_l10n_ro_value(self, price_type):
         self.ensure_one()
         if price_type == "value":
+            # 20.0 signs `stock.move.value`: negative on the outgoing moves
+            # (up to 19.0 it was always the magnitude). The Romanian entries
+            # below carry their own direction (debit/credit keys + sign), so
+            # they keep working with the 19.0 magnitude. A move both incoming
+            # and outgoing (internal transfer) is valued as incoming.
+            if self.is_out and not self.is_in:
+                return -self.value
             return self.value
         if price_type == "sale_price":
             if hasattr(self, "sale_line_id") and self.sale_line_id is not None:

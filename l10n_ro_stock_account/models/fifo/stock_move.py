@@ -120,7 +120,7 @@ class StockMove(models.Model):
                 )
             locations = self.env["stock.location"].search(
                 [
-                    ("is_valued_internal", "=", True),
+                    ("is_valued", "=", True),
                     ("company_id", "=", company.id),
                 ]
             )
@@ -142,7 +142,7 @@ class StockMove(models.Model):
             and m.product_id.cost_method == "fifo"
             and m.company_id.fifo_per_location
             and not m.product_id.lot_valuated
-            and m.product_uom.compare(m.quantity, 0) != 0
+            and m.uom_id.compare(m.quantity, 0) != 0
         )
         res = super(StockMove, self - ro_fifo_moves_out)._action_done(
             cancel_backorder=cancel_backorder
@@ -157,7 +157,7 @@ class StockMove(models.Model):
             )._action_done(cancel_backorder=cancel_backorder)
         return res
 
-    def _set_value(self, correction_quantity=None):
+    def _set_value(self, recompute_date=None, skip_check=False):
         ro_fifo_out_moves = self.filtered(
             lambda move: move.company_id.fifo_per_location
             and move._is_out()
@@ -165,20 +165,17 @@ class StockMove(models.Model):
             and not move.product_id.lot_valuated
         )
         res = super(StockMove, self - ro_fifo_out_moves)._set_value(
-            correction_quantity=correction_quantity
+            recompute_date=recompute_date, skip_check=skip_check
         )
         if ro_fifo_out_moves:
             for move in ro_fifo_out_moves:
-                if correction_quantity:
-                    # Quantity edited after validation: value the correction at
-                    # the move's current unit value (the FIFO layers were
-                    # already consumed at validation), like base Odoo does.
-                    previous_qty = move.quantity - correction_quantity
-                    if previous_qty:
-                        move.value += move.value / previous_qty * correction_quantity
-                    continue
-                if move.value_manual:
-                    move.value = move.value_manual
+                # 20.0: the value of an outgoing move is negative.
+                # The move was split on the FIFO layers of its source location
+                # before validation, each part carrying the value of its layer
+                # as a manual value (`product.value`).
+                manual_data = move._get_manual_value(move._get_valued_qty())
+                if manual_data["quantity"]:
+                    move.value = -abs(manual_data["value"])
                     continue
                 value = 0
                 for move_line in move.move_line_ids:
@@ -188,7 +185,7 @@ class StockMove(models.Model):
                         at_date=move.date,
                         location=move_line.location_dest_id,
                     )
-                move.value = value
+                move.value = -value
         # AVG: mark outgoing moves that consumed more than the on-hand qty
         # at the source location, so they get compensated on the next IN.
         # For FIFO this is handled by the explicit split into FIFO layers.
@@ -209,12 +206,15 @@ class StockMove(models.Model):
             if not valued_qty:
                 continue
             # Deficit = how much of this OUT exceeded the on-hand stock at
-            # the source. (qty_available is measured BEFORE state=done, so
-            # it does not yet include this OUT's effect.)
+            # the source. 20.0 values the outgoing moves once they are done,
+            # when qty_available already includes this OUT's effect: add it
+            # back to get the stock before the move.
+            if move.state == "done":
+                qty_avail_before += valued_qty
             deficit = valued_qty - max(0, qty_avail_before)
             if move.product_id.uom_id.compare(deficit, 0) <= 0:
                 continue
-            unit_price = move.value / valued_qty if valued_qty else 0
+            unit_price = abs(move.value) / valued_qty if valued_qty else 0
             move.write(
                 {
                     "fifo_neg_pending_qty": deficit,
@@ -237,14 +237,12 @@ class StockMove(models.Model):
         self,
         quantity,
         forced_std_price=False,
-        at_date=False,
         ignore_manual_update=False,
     ):
         if self.move_orig_ids:
             move_origin = self.move_orig_ids[0]
             origin_data = move_origin._get_value_data(
                 forced_std_price=forced_std_price,
-                at_date=at_date,
                 ignore_manual_update=ignore_manual_update,
             )
             proportion = (
@@ -261,10 +259,8 @@ class StockMove(models.Model):
             }
         return {}
 
-    def _get_value_from_std_price(self, quantity, std_price=False, at_date=None):
-        res = super()._get_value_from_std_price(
-            quantity=quantity, std_price=std_price, at_date=at_date
-        )
+    def _get_value_from_std_price(self, quantity, std_price=False):
+        res = super()._get_value_from_std_price(quantity=quantity, std_price=std_price)
         ro_fifo_move_with_origin = self.filtered(
             lambda move: move.company_id.fifo_per_location
             and move.product_id.cost_method == "fifo"
@@ -274,7 +270,7 @@ class StockMove(models.Model):
         )
         if ro_fifo_move_with_origin:
             res = ro_fifo_move_with_origin._get_value_from_origin_move(
-                quantity=quantity, at_date=at_date
+                quantity=quantity
             )
         return res
 
@@ -295,7 +291,7 @@ class StockMove(models.Model):
         self.invalidate_recordset(["product_uom_qty", "quantity", "product_qty"])
         fifo_split_vals_list = []
         for move in self:
-            quantity_to_ship = move.product_uom._compute_quantity(
+            quantity_to_ship = move.uom_id._compute_quantity(
                 move.quantity, move.product_id.uom_id, round=False
             )
             fifo_list = move.product_id.with_context(
@@ -316,7 +312,7 @@ class StockMove(models.Model):
                 vals.get("quantity", 0.0) for vals in fifo_split_vals_list[vals_before:]
             )
             accounted_for = move.quantity + split_qty_for_move
-            if move.product_uom.compare(accounted_for, quantity_to_ship):
+            if move.uom_id.compare(accounted_for, quantity_to_ship):
                 raise UserError(
                     self.env._(
                         "Verificare de consistență FIFO eșuată la transferul"
@@ -466,7 +462,8 @@ class StockMove(models.Model):
             delta = new_value_for_qty - old_value_for_qty
             out_move.write(
                 {
-                    "value": out_move.value + delta,
+                    # 20.0: the value of the outgoing move is negative
+                    "value": out_move.value - delta,
                     "fifo_neg_pending_qty": out_move.fifo_neg_pending_qty - consume_qty,
                     "fifo_neg_origin_value": out_move.fifo_neg_origin_value
                     - old_value_for_qty,

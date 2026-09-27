@@ -100,7 +100,7 @@ class TestROStockFifoPartialDelivery(TestROStockCommon):
                         {
                             "product_id": self.product_fifo.id,
                             "product_uom_qty": ordered_qty,
-                            "product_uom": self.product_fifo.uom_id.id,
+                            "uom_id": self.product_fifo.uom_id.id,
                             "location_id": self.location.id,
                             "location_dest_id": self.customer_location.id,
                         }

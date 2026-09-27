@@ -10,6 +10,23 @@ class AccountMoveLine(models.Model):
     _name = "account.move.line"
     _inherit = ["account.move.line", "l10n.ro.mixin"]
 
+    def _get_stock_moves(self):
+        """Stock moves behind the invoice lines in ``self``.
+
+        Up to 19.0 this was a core hook (``stock_account``, extended by
+        ``purchase_stock`` and ``sale_stock``); 20.0 dropped it in favour of
+        the COGS-only ``cogs_move_ids``, which filters the moves by
+        valuation. The Romanian flows need every move of the order line (the
+        move type decides the account), so the hook is kept here with the
+        19.0 semantics for this module and the ones depending on it.
+        """
+        moves = self.env["stock.move"]
+        if "purchase_line_id" in self._fields:
+            moves |= self.purchase_line_id.move_ids
+        if "sale_line_ids" in self._fields and "move_ids" in self.sale_line_ids._fields:
+            moves |= self.sale_line_ids.move_ids
+        return moves
+
     def _compute_account_id(self):
         # For Romania, we need to set the account based on the stock
         # move accounts, if the product is storable and if the move is
