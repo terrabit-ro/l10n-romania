@@ -5,7 +5,7 @@ import logging
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools.float_utils import float_compare, float_is_zero
+from odoo.tools.float_utils import float_compare
 
 _logger = logging.getLogger(__name__)
 
@@ -87,7 +87,9 @@ class StockLandedCost(models.Model):
                 if dest_move._is_out():
                     lc_values = dest_move._get_value_from_extra(dest_move.quantity)
                     lc_amount = lc_values.get("value", 0)
-                    dest_move.value = dest_move._get_value() + lc_amount
+                    # 20.0: `stock.move.value` is negative on the outgoing
+                    # moves, `_get_value()` (and the landed cost) stay positive
+                    dest_move.value = -(abs(dest_move._get_value()) + lc_amount)
                 else:
                     dist_line.move_id._set_value()
         return res
@@ -140,7 +142,7 @@ class StockLandedCost(models.Model):
                     continue
                 um_add_cost = line.additional_landed_cost / move.quantity
                 consumed_qty = move.quantity - move.remaining_qty
-                precision = move.product_id.uom_id.rounding
+                uom = move.product_id.uom_id
                 move_dest_vals_list = self._get_l10n_ro_move_destinations(move)
                 if move_dest_vals_list:
                     # Destination tracking can be imperfect (e.g. historical
@@ -152,14 +154,14 @@ class StockLandedCost(models.Model):
                     total_dest_qty = sum(
                         dest_vals["quantity"] for dest_vals in move_dest_vals_list
                     )
-                    if total_dest_qty and not float_is_zero(
-                        total_dest_qty - consumed_qty, precision_rounding=precision
+                    if total_dest_qty and not uom.is_zero(
+                        total_dest_qty - consumed_qty
                     ):
                         scale = consumed_qty / total_dest_qty
                         for dest_vals in move_dest_vals_list:
                             dest_vals["quantity"] *= scale
-                elif cost.l10n_ro_only_on_distributed_lines and not float_is_zero(
-                    consumed_qty, precision_rounding=precision
+                elif cost.l10n_ro_only_on_distributed_lines and not uom.is_zero(
+                    consumed_qty
                 ):
                     # No destination is tracked at all, yet some of the
                     # move's quantity was consumed. For price-difference

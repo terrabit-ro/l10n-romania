@@ -1,0 +1,2 @@
+id,name,model_id,group_id/id,operation,domain
+access_l10n_ro_stock_valuation_adjustment_lines,l10n.ro.stock.valuation.adjustment.lines,l10n.ro.stock.valuation.adjustment.lines,stock.group_stock_manager,crud,
