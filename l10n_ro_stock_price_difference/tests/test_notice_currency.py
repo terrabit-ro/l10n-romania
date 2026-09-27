@@ -41,10 +41,16 @@ class TestNoticeCurrencyPriceDifference(TestROStockCommon):
 
     @classmethod
     def _set_rate(cls, date, inverse_rate):
+        """`inverse_rate` units of company currency for 1 unit of EUR, in
+        effect on `date`.
+
+        20.0 applies a rate from the day after its date (`name < date` in
+        `res.currency._get_rates`), like the BNR rate published the day
+        before, so the rate is dated the previous day."""
         return cls.env["res.currency.rate"].create(
             {
                 "currency_id": cls.eur.id,
-                "name": date,
+                "name": date - timedelta(days=1),
                 "company_id": cls.env.company.root_id.id,
                 "inverse_company_rate": inverse_rate,
             }

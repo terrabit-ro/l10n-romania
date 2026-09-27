@@ -36,7 +36,12 @@ class AccountMoveLine(models.Model):
         if line.purchase_line_id.product_id.purchase_method != "receive":
             return res
 
-        if not line._eligible_for_stock_account():
+        # 20.0: `_eligible_for_stock_account` is gone; keep its 19.0 semantics
+        # (storable product, not dropshipped). The core replacement
+        # `_use_inventory_valuation` also requires real time valuation.
+        if not line.product_id.is_storable or any(
+            move._is_dropshipped() for move in line._get_stock_moves()
+        ):
             return res
 
         if line.product_id.cost_method == "standard":
@@ -66,16 +71,18 @@ class AccountMoveLine(models.Model):
 
         stock_value = stock_qty = 0.0
         for stock_move in stock_moves:
+            # 20.0: `stock.move.value` is negative on the outgoing moves (in 19.0
+            # it was always positive), so abs() keeps the 19.0 result
             if stock_move._is_incoming():
-                stock_value += stock_move.value
+                stock_value += abs(stock_move.value)
                 stock_qty += stock_move.quantity
             else:
-                stock_value -= stock_move.value
+                stock_value -= abs(stock_move.value)
                 stock_qty -= stock_move.quantity
         res["stock_move_id"] = stock_moves.sorted("id", reverse=True)[:1].id
-        precision = line.product_uom_id.rounding or line.product_id.uom_id.rounding
 
-        if float_is_zero(stock_qty, precision_rounding=precision):
+        # 20.0: `uom.uom.rounding` is gone, all units share the "Product Unit" precision
+        if line.product_id.uom_id.is_zero(stock_qty):
             return res
 
         inv_lines = self.search(
