@@ -1,0 +1,362 @@
+# Copyright (C) 2025 NextERP Romania
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
+
+import logging
+
+from odoo import fields, models
+from odoo.fields import Domain
+
+_logger = logging.getLogger(__name__)
+
+
+class ProductProduct(models.Model):
+    _name = "product.product"
+    _inherit = ["product.product", "l10n.ro.mixin"]
+
+    def _compute_value(self):
+        """Compute totals of multiple svl related values"""
+        company_id = self.env.company
+        self.company_currency_id = company_id.currency_id
+        ro_fifo_products = self.filtered(
+            lambda p: company_id.fifo_per_location
+            and p.cost_method == "fifo"
+            and not p.lot_valuated
+        )
+        res = super(ProductProduct, self - ro_fifo_products)._compute_value()
+        # Share a request-scoped cache across all FIFO stack lookups in this
+        # batch — reduces N SQL queries to 1 per (product, location).
+        cache = self.env.context.get("fifo_stack_cache")
+        if cache is None:
+            cache = {}
+            ro_fifo_products = ro_fifo_products.with_context(fifo_stack_cache=cache)
+        for product in ro_fifo_products:
+            at_date = fields.Datetime.to_datetime(product.env.context.get("to_date"))
+            if at_date:
+                product = product.with_context(at_date=at_date)
+            qty_available = product.sudo(False)._with_valuation_context().qty_available
+            product.total_value = product._run_fifo_value(
+                qty_available, at_date=at_date
+            )
+            product.avg_cost = (
+                product.total_value / qty_available if qty_available else 0
+            )
+        return res
+
+    def _correct_inventory_valuation(self, from_date):
+        """20.0 replays the valuation from ``from_date`` (cost method change,
+        reset of a done move) and rewrites the value of the outgoing moves
+        already done. The Romanian entries are posted from those values when
+        the move is done and are not rewritten, so, as up to 19.0, the done
+        moves of the Romanian products keep their value."""
+        ro_products = self.filtered("is_l10n_ro_record")
+        return super(ProductProduct, self - ro_products)._correct_inventory_valuation(
+            from_date
+        )
+
+    def _get_remaining_moves_ro(self, lot=None, at_date=None, location=None):
+        """Returns a dictionary of stock moves and their remaining quantities
+        for each product in self."""
+        moves_qty_by_product = {}
+        for product in self:
+            if location:
+                product = product.with_context(location=location.ids)
+            moves, remaining_qty = product._run_fifo_get_stack(
+                lot=lot, at_date=at_date, location=location
+            )
+            moves = self.env["stock.move"].concat(moves)
+            if not moves:
+                continue
+            qty_by_move = {m: m.quantity for m in moves[1:]}
+            qty_by_move[moves[0]] = remaining_qty
+            moves_qty_by_product[product] = qty_by_move
+        return moves_qty_by_product
+
+    def _get_cogs_value(self, quantity):
+        ro_fifo_products = self.filtered(
+            lambda p: self.env.company.fifo_per_location
+            and p.cost_method == "fifo"
+            and not p.lot_valuated
+        )
+        res = super(ProductProduct, self - ro_fifo_products)._get_cogs_value(quantity)
+        ro_fifo_products._run_fifo_value(quantity)
+        return res
+
+    def _run_fifo_value(self, quantity, lot=None, at_date=None, location=None):
+        """Returns the total value for the next outgoing product base on the
+        qty give as argument."""
+        fifo_list = self._run_fifo_layers(
+            quantity, lot=lot, at_date=at_date, location=location
+        )
+        total_value = sum(item["value"] for item in fifo_list)
+        return total_value
+
+    def _get_fifo_value(self, quantity, lot=None, stack_size_extra_qty=0):
+        """Returns the total *value* (float) for the next outgoing product
+        based on the qty given as argument.
+
+        20.0 renamed the per-quantity FIFO valuation of 19.0 ``_run_fifo``
+        (``_run_fifo`` is now the batch valuation of the stock). This keeps
+        the core contract: core callers (``account.move.line``,
+        ``stock.move``, ``stock.lot``) divide or assign the result as a
+        float. The RO ``fifo_per_location`` flow derives that value from the
+        per-location FIFO layers (see ``_run_fifo_layers``); every other case
+        falls back to core. This must not return a list, otherwise a RO
+        product reaching a core caller crashes with ``list / float``.
+        """
+        self.ensure_one()
+        is_ro_fifo = (
+            self.env.company.fifo_per_location
+            and self.cost_method == "fifo"
+            and not self.lot_valuated
+        )
+        if not is_ro_fifo:
+            return super()._get_fifo_value(
+                quantity, lot=lot, stack_size_extra_qty=stack_size_extra_qty
+            )
+        product = self
+        if stack_size_extra_qty:
+            product = self.with_context(
+                l10n_ro_fifo_stack_extra_qty=stack_size_extra_qty
+            )
+        return product._run_fifo_value(quantity, lot=lot)
+
+    def _run_fifo_layers(self, quantity, lot=None, at_date=None, location=None):
+        """Returns the list of quantity/value slices (dicts with ``move_id``,
+        ``quantity``, ``value`` and ``description``) consumed to satisfy the
+        given outgoing ``quantity``. Used by ``_run_fifo_value`` and by the
+        outgoing move split (RO ``fifo_per_location`` flow).
+
+        Despite the ``layers`` in the name, these are slices of the incoming
+        ``stock.move`` records making up the location stack: 19.0 values the
+        moves themselves (``stock.move.value``), there is no
+        ``stock.valuation.layer`` any more."""
+        self.ensure_one()
+        ro_fifo_products = self.filtered(
+            lambda p: self.env.company.fifo_per_location
+            and p.cost_method == "fifo"
+            and not p.lot_valuated
+        )
+        if not ro_fifo_products:
+            return [
+                {
+                    "move_id": False,
+                    "quantity": quantity,
+                    "value": super()._get_fifo_value(quantity, lot=lot),
+                    "description": self.display_name,
+                }
+            ]
+        if self.uom_id.compare(quantity, 0) <= 0:
+            return [
+                {
+                    "move_id": False,
+                    "quantity": quantity,
+                    "value": quantity * self.standard_price,
+                    "description": self.env._(
+                        "Forced value for %(qty)s units", qty=quantity
+                    ),
+                }
+            ]
+
+        fifo_list = []
+        remaining_moves = self._get_remaining_moves_ro(
+            lot=lot, at_date=at_date, location=location
+        ).get(self, {})
+        fifo_stack = sorted(remaining_moves.keys(), key=lambda sm: (sm.date, sm.id))
+        # Going up to get the quantity in the argument
+        while quantity > 0 and fifo_stack:
+            move = fifo_stack.pop(0)
+            move_values = {
+                "move_id": move.id,
+                "quantity": move.remaining_qty,
+                "value": move.remaining_value,
+                "description": move.display_name,
+            }
+            if at_date:
+                # 20.0 dropped the valuation at a past date
+                # (`_get_value_data(at_date=...)`): the manual values of a
+                # move are taken as they are now.
+                move_values = move._get_value_data()
+                move_values["move_id"] = move.id
+            rem_qty = move_values["quantity"]
+            move_value = move_values["value"]
+            # A move in the stack can have nothing left to consume: an incoming
+            # move whose valued quantity is zero (all its lines excluded from
+            # valuation, or a quantity corrected to 0 after validation), or a
+            # quantity that rounds to zero in the product UoM. Skip it so the
+            # returned list stays free of zero-quantity entries - the outgoing
+            # move split cannot turn those into stock moves.
+            if self.uom_id.compare(rem_qty, 0) <= 0:
+                continue
+            if rem_qty >= quantity:
+                reserved_qty = min(quantity, rem_qty)
+                fifo_list.append(
+                    {
+                        "move_id": move.id,
+                        "quantity": reserved_qty,
+                        "value": move_value * reserved_qty / rem_qty,
+                        "description": move.display_name,
+                    }
+                )
+                quantity -= reserved_qty
+            else:
+                fifo_list.append(move_values)
+                quantity -= move_values["quantity"]
+        # When we required more quantity than available we extrapolate
+        # with the last known price
+        if quantity > 0:
+            fifo_list.append(
+                {
+                    "move_id": False,
+                    "quantity": quantity,
+                    "value": quantity * self.standard_price,
+                    "description": self.env._(
+                        "Forced value for %(qty)s units", qty=quantity
+                    ),
+                }
+            )
+        return fifo_list
+
+    def _run_fifo_get_stack(self, lot=None, at_date=None, location=None):
+        """FIFO stack of the incoming moves making up the stock, optionally
+        restricted to one ``location`` (RO ``fifo_per_location``).
+
+        Up to 19.0 this extended the core method of the same name; 20.0
+        replaced it with ``_get_fifo_stack``, which has no ``location``. The
+        method is kept, with the 19.0 signature and result, for this module
+        and the ones depending on it (storage sheet, inventory closing).
+        """
+        ro_fifo_products = self.filtered(
+            lambda p: self.env.company.fifo_per_location
+            and p.cost_method == "fifo"
+            and not p.lot_valuated
+        )
+        if not ro_fifo_products:
+            return self._get_fifo_stack(lot=lot, at_date=at_date)
+
+        # Request-scoped cache. Callers (reports, batched _compute_value)
+        # can pre-populate ``fifo_stack_cache={}`` in context to share
+        # results across many (product, location) lookups.
+        cache = self.env.context.get("fifo_stack_cache")
+        cache_key = None
+        if cache is not None:
+            cache_key = (
+                self.id,
+                location.id if location else None,
+                lot.id if lot else None,
+                at_date,
+                self.env.context.get("l10n_ro_fifo_stack_extra_qty", 0),
+            )
+            if cache_key in cache:
+                return cache[cache_key]
+
+        # 20.0: `stock.location.is_valued_external` is gone
+        external_location = location and not location._should_be_valued()
+        fifo_stack = []
+        fifo_stack_size = 0
+        if location:
+            # ``strict=True`` keeps qty_available counted at this exact
+            # location only (not its descendants). Without it, a parent
+            # location like WH1/Stock would see its sublocations' quantities
+            # and over-state the FIFO stack — and a transfer Stock→Sub-A
+            # would consume from the parent's stack twice (once for the
+            # transfer itself, then again when subsequent operations re-walk
+            # the parent's inflated stack).
+            self = self.with_context(  # noqa: PLW0642
+                location=location.ids, strict=True
+            )
+            fifo_stack_size = self.with_context(to_date=at_date).qty_available
+        elif lot:
+            fifo_stack_size = lot.product_qty
+        else:
+            fifo_stack_size = (
+                self._with_valuation_context()
+                .with_context(to_date=at_date)
+                .qty_available
+            )
+            # outgoing moves valued once done (see `_get_fifo_value`)
+            fifo_stack_size += self.env.context.get("l10n_ro_fifo_stack_extra_qty", 0)
+        # Use UoM rounding for the comparison so fractional quantities
+        # (kg, m, etc.) are handled correctly.
+        if self.uom_id.compare(fifo_stack_size, 0) <= 0:
+            return fifo_stack, 0
+
+        moves_domain = Domain(
+            [
+                ("product_id", "=", self.id),
+                ("company_id", "=", self.env.company.id),
+                ("state", "=", "done"),
+            ]
+        )
+        if lot:
+            moves_domain &= Domain([("move_line_ids.lot_id", "in", lot.id)])
+        if at_date:
+            moves_domain &= Domain([("date", "<=", at_date)])
+        if location:
+            moves_domain &= Domain([("location_dest_id", "=", location.id)])
+        if external_location:
+            moves_domain &= Domain([("is_out", "=", True)])
+        else:
+            moves_domain &= Domain([("is_in", "=", True)])
+        # Base limit to 100 to avoid issue with other UoM than Unit
+        initial_limit = max(int(fifo_stack_size) * 10, 100)
+        moves_in = self.env["stock.move"].search(
+            moves_domain, order="date desc, id desc", limit=initial_limit
+        )
+        # Prefetch move_line_ids + the fields used by _get_valued_qty so we
+        # don't hit the DB once per move in the walk below. Eliminates N
+        # round-trips on stacks with many incoming moves (~95% speedup on
+        # cold caches with 500+ moves).
+        if moves_in:
+            moves_in.move_line_ids.fetch(
+                [
+                    "quantity_product_uom",
+                    "picked",
+                    "owner_id",
+                    "location_id",
+                    "location_dest_id",
+                    "lot_id",
+                ]
+            )
+        remaining_qty_on_first_stack_move = 0
+        current_offset = 0
+        idx = 0
+        # Go to the bottom of the stack. Iterate by index instead of slicing
+        # the recordset (recordset slicing creates a new recordset each step,
+        # so the legacy approach was O(N^2) over the stack walk).
+        while self.uom_id.compare(fifo_stack_size, 0) > 0 and idx < len(moves_in):
+            move = moves_in[idx]
+            idx += 1
+            in_qty = move._get_valued_qty()
+            # Moves that value nothing (all lines excluded from valuation,
+            # quantity corrected to 0 after validation) must not enter the
+            # stack: they would be reported with a remaining quantity of zero.
+            if self.uom_id.compare(in_qty, 0) > 0:
+                fifo_stack.append(move)
+                remaining_qty_on_first_stack_move = min(in_qty, fifo_stack_size)
+                fifo_stack_size -= in_qty
+            if self.uom_id.compare(fifo_stack_size, 0) > 0 and idx >= len(moves_in):
+                # We need to fetch more moves
+                current_offset += 1
+                moves_in = self.env["stock.move"].search(
+                    moves_domain,
+                    order="date desc, id desc",
+                    offset=current_offset * initial_limit,
+                    limit=initial_limit,
+                )
+                if moves_in:
+                    moves_in.move_line_ids.fetch(
+                        [
+                            "quantity_product_uom",
+                            "picked",
+                            "owner_id",
+                            "location_id",
+                            "location_dest_id",
+                            "lot_id",
+                        ]
+                    )
+                idx = 0
+        fifo_stack.reverse()
+        result = (fifo_stack, remaining_qty_on_first_stack_move)
+        if cache is not None and cache_key is not None:
+            cache[cache_key] = result
+        return result
