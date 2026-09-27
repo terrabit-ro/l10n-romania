@@ -3,7 +3,14 @@
 
 from odoo import api, models
 
-VALUATION_FIELDS = ["quantity", "location_id", "location_dest_id", "owner_id", "quant_id", "lot_id"]
+VALUATION_FIELDS = [
+    "quantity",
+    "location_id",
+    "location_dest_id",
+    "owner_id",
+    "quant_id",
+    "lot_id",
+]
 
 
 class StockMoveLine(models.Model):
