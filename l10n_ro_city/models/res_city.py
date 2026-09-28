@@ -17,6 +17,7 @@ class CountryCity(models.Model):
         for city in self:
             city.is_l10n_ro_record = not city.country_id or city.country_id.code == "RO"
 
+    @api.depends("country_id.code", "state_id.code", "l10n_ro_municipality")
     def _compute_display_name(self):
         rest = self
         for record in self:
