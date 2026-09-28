@@ -293,7 +293,7 @@ class TestStockReport(TransactionCase):
         Move.create(
             {
                 "product_id": product.id,
-                "product_uom": product.uom_id.id,
+                "uom_id": product.uom_id.id,
                 "product_uom_qty": qty,
                 "picking_id": picking.id,
                 "location_id": picking.location_id.id,
@@ -363,6 +363,11 @@ class TestStockReport(TransactionCase):
         self.assertEqual(qty_in_1, 4)
         self.assertEqual(qty_out_1, 2)
         self.assertEqual(qty_final_1, 2)
+        # Values as in 19.0: every amount is a magnitude (20.0 stores the value
+        # of the outgoing moves as a negative number), 50.0 per unit.
+        self._assert_amounts(
+            lines1, initial=0.0, amount_in=200.0, out=100.0, final=100.0
+        )
 
         # Period 2 operations
         self._create_receipt(product, 10, date2_dt)
@@ -392,6 +397,104 @@ class TestStockReport(TransactionCase):
         self.assertEqual(qty_in_2, 10)
         self.assertEqual(qty_out_2, 4)
         self.assertEqual(qty_final_2, 8)
+        self._assert_amounts(
+            lines2, initial=100.0, amount_in=500.0, out=200.0, final=400.0
+        )
+
+    def _assert_amounts(self, lines, initial, amount_in, out, final):
+        currency = self.env.company.currency_id
+        for field_name, expected in (
+            ("amount_initial", initial),
+            ("amount_in", amount_in),
+            ("amount_out", out),
+            ("amount_final", final),
+        ):
+            self.assertEqual(
+                currency.compare_amounts(sum(lines.mapped(field_name)), expected),
+                0,
+                f"{field_name}: {sum(lines.mapped(field_name))} != {expected}",
+            )
+
+    def test_report_values_match_19(self):
+        """The storage sheet reports the same values as in 19.0.
+
+        20.0 stores stock.move.value negative on the outgoing moves (19.0 kept
+        the magnitude). The sheet must still show positive input/output amounts,
+        the output price as a positive unit cost and the closing balance as the
+        opening balance plus inputs less outputs, both on the report lines and
+        on the valued move types.
+        """
+        self.create_po()
+        self.create_invoice()
+        date_from = fields.Date.today() - timedelta(days=1)
+        date_to = fields.Date.today() + timedelta(days=1)
+
+        # Product A: 20 received at 50.0 on the stock location, 5 delivered.
+        self._create_delivery(self.product_1, 5, fields.Datetime.now())
+        delivery_move = self.env["stock.move"].search(
+            [
+                ("product_id", "=", self.product_1.id),
+                ("location_dest_id.usage", "=", "customer"),
+                ("state", "=", "done"),
+            ]
+        )
+        self.assertTrue(delivery_move.is_out)
+        # 20.0 core semantics the report compensates for.
+        self.assertLess(delivery_move.value, 0)
+
+        wizard = Form(self.env["l10n.ro.stock.storage.sheet"])
+        wizard.location_id = self.location
+        wizard.sublocation = True
+        wizard.date_from = date_from
+        wizard.date_to = date_to
+        wizard = wizard.save()
+        wizard.button_show_sheet()
+
+        Line = self.env["l10n.ro.stock.storage.sheet.line"]
+        lines_a = Line.search(
+            [("report_id", "=", wizard.id), ("product_id", "=", self.product_1.id)]
+        )
+        self.assertEqual(sum(lines_a.mapped("quantity_in")), 20)
+        self.assertEqual(sum(lines_a.mapped("quantity_out")), 5)
+        self.assertEqual(sum(lines_a.mapped("quantity_final")), 15)
+        self._assert_amounts(
+            lines_a, initial=0.0, amount_in=1000.0, out=250.0, final=750.0
+        )
+
+        line_out = lines_a.filtered("quantity_out")
+        self.assertEqual(len(line_out), 1)
+        self.assertEqual(line_out.valued_type, "delivery")
+        self.assertAlmostEqual(line_out.unit_price_out, 50.0)
+        line_in = lines_a.filtered("quantity_in")
+        self.assertEqual(len(line_in), 1)
+        self.assertEqual(line_in.valued_type, "reception")
+        self.assertAlmostEqual(line_in.unit_price_in, 50.0)
+        self.assertEqual(line_in.account_id, self.account_valuation)
+
+        # Product B: 30 received at 40.0 on the sublocation, nothing delivered.
+        lines_b = Line.search(
+            [("report_id", "=", wizard.id), ("product_id", "=", self.product_2.id)]
+        )
+        self.assertEqual(sum(lines_b.mapped("quantity_final")), 30)
+        self._assert_amounts(
+            lines_b, initial=0.0, amount_in=1200.0, out=0.0, final=1200.0
+        )
+
+        # Next period: the closing balance becomes the opening balance.
+        wizard_next = Form(self.env["l10n.ro.stock.storage.sheet"])
+        wizard_next.location_id = self.location
+        wizard_next.sublocation = True
+        wizard_next.date_from = date_to + timedelta(days=1)
+        wizard_next.date_to = date_to + timedelta(days=2)
+        wizard_next = wizard_next.save()
+        wizard_next.button_show_sheet()
+        lines_next = Line.search(
+            [("report_id", "=", wizard_next.id), ("product_id", "=", self.product_1.id)]
+        )
+        self.assertEqual(sum(lines_next.mapped("quantity_initial")), 15)
+        self._assert_amounts(
+            lines_next, initial=750.0, amount_in=0.0, out=0.0, final=750.0
+        )
 
     def test_report_valued_type_from_move_type(self):
         """The valued type of a movement line comes from the move type.
