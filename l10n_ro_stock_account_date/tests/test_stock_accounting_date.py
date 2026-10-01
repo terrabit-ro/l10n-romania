@@ -51,7 +51,23 @@ class TestStockAccountDate(TestROStockCommon):
                 },
             ],
         }
-        self.run_test_step(po_step)
+        # run the steps of the case: `run_test_step` expects a single step and
+        # silently did nothing when given the whole case (up to 19.0 the
+        # transfers and inventories below worked on an empty stock)
+        self.test_case(po_step)
+
+    def assert_entry(self, account_move, acc_date, expected):
+        """Check the date and the debit/credit lines of a stock entry.
+
+        ``expected`` is a list of ``(account_code, debit, credit)``."""
+        self.assertEqual(account_move.date, acc_date)
+        self.assertEqual(
+            sorted(
+                (line.account_id.code, line.debit, line.credit)
+                for line in account_move.line_ids
+            ),
+            sorted(expected),
+        )
 
     def make_inventory(self):
         inventory_obj = self.env["stock.quant"].with_context(inventory_mode=True)
@@ -78,7 +94,7 @@ class TestStockAccountDate(TestROStockCommon):
                         {
                             "product_id": self.product_fifo.id,
                             "product_uom_qty": 5,
-                            "product_uom": self.product_fifo.uom_id.id,
+                            "uom_id": self.product_fifo.uom_id.id,
                             "location_id": self.location.id,
                             "location_dest_id": self.location1.id,
                         },
@@ -156,6 +172,12 @@ class TestStockAccountDate(TestROStockCommon):
         )
         self.assertTrue(stock_move.account_move_id)
         self.assertEqual(stock_move.account_move_id.date, acc_date)
+        # +5 pcs at 100, storno entry as up to 19.0
+        self.assert_entry(
+            stock_move.account_move_id,
+            acc_date,
+            [("371000", 0.0, -500.0), ("607000", -500.0, 0.0)],
+        )
 
     def test_transfer_accounting_date_future(self):
         # Test restrictie transfer cu data contabila in viitor
@@ -212,3 +234,58 @@ class TestStockAccountDate(TestROStockCommon):
         )
         self.assertTrue(stock_move.account_move_id)
         self.assertEqual(stock_move.account_move_id.date, acc_date)
+        # 5 pcs at 100 from location (371000) to location1 (371001)
+        self.assert_entry(
+            stock_move.account_move_id,
+            acc_date,
+            [
+                ("371000", 0.0, 500.0),
+                ("371001", 500.0, 0.0),
+                ("482000", 0.0, 500.0),
+                ("482000", 500.0, 0.0),
+            ],
+        )
+
+    def test_delivery_accounting_date(self):
+        # Test livrare efectuata cu data contabila: 20.0 semneaza
+        # `stock.move.value` (negativ la iesiri), nota ramane cea din 19.0
+        self.make_purchase()
+        warehouse = self.location.warehouse_id
+        customer_location = self.env.ref("stock.stock_location_customers")
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": warehouse.out_type_id.id,
+                "partner_id": self.customer_1.id,
+                "location_id": self.location.id,
+                "location_dest_id": customer_location.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": self.product_fifo.id,
+                            "product_uom_qty": 4,
+                            "uom_id": self.product_fifo.uom_id.id,
+                            "location_id": self.location.id,
+                            "location_dest_id": customer_location.id,
+                        },
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        picking.move_ids._set_quantity_done(4)
+        acc_date = fields.Date.today() - timedelta(days=1)
+        picking.l10n_ro_accounting_date = acc_date
+        picking.button_validate()
+        stock_move = picking.move_ids
+        self.assertEqual(stock_move.date.date(), acc_date)
+        self.assertEqual(picking.date_done.date(), acc_date)
+        # the date change must not trigger the 20.0 revaluation
+        self.assertEqual(stock_move.value, -400.0)
+        self.assert_entry(
+            stock_move.account_move_id,
+            acc_date,
+            [("371000", 0.0, 400.0), ("607000", 400.0, 0.0)],
+        )
