@@ -31,7 +31,7 @@ class TestNonDeductibleVATP(TestNondeductibleCommon):
 
     def _post_and_pay(self, percent):
         inv = self.vatp_nd_invoice
-        inv.invoice_line_ids.deductible_amount = 100 - int(percent)
+        inv.invoice_line_ids.deductible_percentage = (100 - int(percent)) / 100
         inv.action_post()
         invoice_sig = self._aml_signature(inv)
         self.env["account.payment.register"].with_context(
@@ -125,7 +125,7 @@ class TestNonDeductibleVATP(TestNondeductibleCommon):
                             "account_id": self.account_expense.id,
                             "quantity": 1,
                             "price_unit": price,
-                            "deductible_amount": deductible,
+                            "deductible_percentage": deductible / 100,
                             "tax_ids": [Command.set(self.vatp_tax.ids)],
                         }
                     )
@@ -213,7 +213,7 @@ class TestNonDeductibleVATP(TestNondeductibleCommon):
                             "account_id": self.account_expense.id,
                             "quantity": 1,
                             "price_unit": 200.0,
-                            "deductible_amount": 100,
+                            "deductible_percentage": 1.0,
                             "tax_ids": [Command.set(self.vatp_tax_deductible.ids)],
                         }
                     ),
@@ -224,7 +224,7 @@ class TestNonDeductibleVATP(TestNondeductibleCommon):
                             "account_id": self.account_expense.id,
                             "quantity": 1,
                             "price_unit": 100.0,
-                            "deductible_amount": 50,
+                            "deductible_percentage": 0.5,
                             "tax_ids": [Command.set(self.vatp_tax.ids)],
                         }
                     ),
