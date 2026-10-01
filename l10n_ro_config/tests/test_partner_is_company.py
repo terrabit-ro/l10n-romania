@@ -54,8 +54,10 @@ class TestPartnerIsCompany(TransactionCase):
         self.assertFalse(contact.is_company)
         self.assertFalse(contact_2.is_company)
 
-        # detaching the contact makes it its own commercial entity again
-        contact.parent_id = False
+        # detaching the contact makes it its own commercial entity again; it
+        # gets its own CUI, a second company with the same CUI is refused by
+        # l10n_ro_partner_unique when installed
+        contact.write({"parent_id": False, "vat": "RO23456783"})
         self.assertTrue(contact.is_company)
 
     def test_ro_natural_person(self):
