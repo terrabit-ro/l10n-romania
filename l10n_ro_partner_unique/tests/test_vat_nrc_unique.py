@@ -186,7 +186,7 @@ class TestVatUnique(AccountTestInvoicingCommon):
                 "type": "invoice",
             }
         )
-        self.assertFalse(child_1.is_company)
+        self.assertEqual(child_1.commercial_partner_id, self.partner)
         self.assertEqual(child_2.commercial_partner_id, self.partner)
         self._set_mode("vat_nrc")
         self.Partner.create(

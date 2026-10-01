@@ -50,7 +50,10 @@ class ResPartner(models.Model):
 
         return domain
 
-    @api.constrains("vat", "nrc", "is_company")
+    # parent_id: with the standard l10n_ro_edi rule a contact of a Romanian
+    # company is already flagged is_company (it carries the company CUI), so
+    # detaching it changes parent_id only.
+    @api.constrains("vat", "nrc", "is_company", "parent_id")
     def _check_vat_nrc_unique(self):
         if self.env.context.get("partner_merge"):
             return
