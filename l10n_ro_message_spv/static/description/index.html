@@ -599,6 +599,14 @@ XML-ul a fost validat de sistemul ANAF.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>20.0.2.13.1 (2026-10-01)</strong></p>
+<ul class="simple">
+<li>The partner lookup by CIF returns the commercial entity, never one of
+its contacts. In Odoo 20 <tt class="docutils literal">is_company</tt> is computed and
+<tt class="docutils literal">l10n_ro_edi</tt> decides it for Romanian partners from the CIF alone,
+so the contacts of a company, which carry its CIF, could be matched
+instead of the company.</li>
+</ul>
 <p><strong>19.0.2.11.0 (2026-08-19)</strong></p>
 <ul class="simple">
 <li>The partner lookup by tax ID now accepts both spellings of the

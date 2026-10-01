@@ -1377,6 +1377,30 @@ class TestMessageSPV(TestMessageSPV):
         message.get_partner()
         self.assertEqual(message.partner_id, self.vendor)
 
+    def test_get_partner_from_cif_returns_commercial_entity(self):
+        """The contacts of a company carry its CIF too: the lookup returns the
+        company itself, never one of its contacts."""
+        contact = self.env["res.partner"].create(
+            {
+                "name": "Contact Furnizor",
+                "parent_id": self.vendor.id,
+                "type": "contact",
+            }
+        )
+        self.assertEqual(contact.vat, self.vendor.vat)
+        company = self.env.company
+        for cif in ("20603502", "RO20603502"):
+            self.assertEqual(company._l10n_ro_get_partner_from_cif(cif), self.vendor)
+        message = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "MSG_CIF_CONTACT",
+                "cif": "20603502",
+                "company_id": company.id,
+            }
+        )
+        message.get_partner()
+        self.assertEqual(message.partner_id, self.vendor)
+
     # ------------------------------------------------------------------
     # Multi-company isolation
     # ------------------------------------------------------------------

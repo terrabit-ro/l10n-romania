@@ -1,3 +1,10 @@
+**20.0.2.13.1 (2026-10-01)**
+
+- The partner lookup by CIF returns the commercial entity, never one of its
+  contacts. In Odoo 20 `is_company` is computed and `l10n_ro_edi` decides it
+  for Romanian partners from the CIF alone, so the contacts of a company,
+  which carry its CIF, could be matched instead of the company.
+
 **19.0.2.11.0 (2026-08-19)**
 
 - The partner lookup by tax ID now accepts both spellings of the Romanian

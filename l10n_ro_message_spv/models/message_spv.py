@@ -734,16 +734,16 @@ class MessageSPV(models.Model):
                 cif_clean = re.sub(r"^RO", "", message.cif.strip().upper())
                 partner = partner_obj.browse()
                 for variant in (cif_clean, "RO" + cif_clean):
+                    # The contacts of a company carry its CIF too: keep their
+                    # commercial entity, as l10n_ro_edi does for B2B/B2C.
                     partner = partner_obj.search(
                         [
                             ("vat", "=ilike", variant),
-                            ("is_company", "=", True),
                             "|",
                             ("company_id", "=", message.company_id.id),
                             ("company_id", "=", False),
-                        ],
-                        limit=1,
-                    )
+                        ]
+                    ).commercial_partner_id.filtered("is_company")[:1]
                     if partner:
                         break
                 if not partner:
