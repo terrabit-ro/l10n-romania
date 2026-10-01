@@ -28,7 +28,7 @@ class AccountPayment(models.Model):
         lines = self.env["account.bank.statement.line"]
         for payment in self:
             if (
-                payment.state == "in_process"
+                payment.state == "paid"
                 and not payment.l10n_ro_statement_line_id
                 and payment.l10n_ro_statement_id
             ):

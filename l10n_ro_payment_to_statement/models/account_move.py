@@ -14,9 +14,8 @@ class AccountMove(models.Model):
         return super()._get_starting_sequence()
 
     def _get_last_sequence_domain(self, relaxed=False):
-        where_string, param = super()._get_last_sequence_domain(relaxed)
-
-        return where_string, param
+        # in 20.0 returns an SQL object (no longer (where_string, param))
+        return super()._get_last_sequence_domain(relaxed)
 
     def get_l10n_ro_sequence(self):
         self.ensure_one()
@@ -80,7 +79,7 @@ class AccountMove(models.Model):
                     cash_sequence = move.get_l10n_ro_sequence()
                     if cash_sequence and (
                         not move.origin_payment_id
-                        or move.origin_payment_id.state == "in_process"
+                        or move.origin_payment_id.state == "paid"
                     ):
                         if not move.name or move.name == "/":
                             new_number = cash_sequence.next_by_id()
@@ -168,7 +167,7 @@ class AccountMove(models.Model):
             if move.is_l10n_ro_record:
                 if (
                     move.origin_payment_id
-                    and move.origin_payment_id.state != "in_process"
+                    and move.origin_payment_id.state != "paid"
                     and (not move.name or move.name == "/")
                 ):
                     move.origin_payment_id.l10n_ro_force_cash_sequence()
