@@ -11,6 +11,16 @@
                     name="readonly"
                 >country_code != 'RO' and state != 'draft'</attribute>
             </field>
+            <!-- In 20.0 the rate is edited through the exchange rate widget,
+                 the field itself is invisible. -->
+            <xpath
+                expr="//widget[@name='account_currency_exchange_rate']"
+                position="attributes"
+            >
+                <attribute
+                    name="readonly"
+                >country_code != 'RO' and state != 'draft'</attribute>
+            </xpath>
         </field>
     </record>
 </odoo>
