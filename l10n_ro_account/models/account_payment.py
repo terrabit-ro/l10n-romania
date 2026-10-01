@@ -11,13 +11,11 @@ class AccountPaymentCheck(models.AbstractModel):
     _description = "Account Payment Check"
 
     def check_amount_payment(self, payment):
-        get_param = self.env["ir.config_parameter"].sudo().get_param
-        amount_company_limit = get_param(
+        get_str = self.env["ir.config_parameter"].sudo().get_str
+        amount_company_limit = get_str(
             "l10n_ro_accounting.amount_company_limit", "5000"
         )
-        amount_person_limit = get_param(
-            "l10n_ro_accounting.amount_person_limit", "10000"
-        )
+        amount_person_limit = get_str("l10n_ro_accounting.amount_person_limit", "10000")
         amount_company_limit = safe_eval(amount_company_limit)
         amount_person_limit = safe_eval(amount_person_limit)
 

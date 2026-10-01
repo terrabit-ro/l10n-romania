@@ -20,15 +20,17 @@ class TestAccountPayment(TransactionCase):
         self.partner_person = self.env["res.partner"].create(
             {
                 "name": "Test Partner",
-                "company_type": "person",
             }
         )
         self.partner_company = self.env["res.partner"].create(
             {
                 "name": "Test Partner",
-                "company_type": "company",
+                # in 20.0 is_company is computed: own commercial entity + VAT
+                "vat": "RO12345674",
             }
         )
+        self.assertTrue(self.partner_company.is_company)
+        self.assertFalse(self.partner_person.is_company)
         self.journal = self.env["account.journal"].create(
             {
                 "name": "Test Journal",
