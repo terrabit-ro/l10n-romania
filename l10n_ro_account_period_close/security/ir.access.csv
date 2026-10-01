@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+access_l10n_ro_account_period_closing_user,l10n.ro.account.period.closing,l10n.ro.account.period.closing,account.group_account_user,cru,
+access_l10n_ro_account_period_closing_manager,l10n.ro.account.period.closing,l10n.ro.account.period.closing,account.group_account_manager,crud,
+l10n_ro_account_period_closing_comp_rule,Account Period Closing,l10n.ro.account.period.closing,,crud,"['|', ('company_id', '=', False), ('company_id', 'in', [user.company_id.id])]"
+access_l10n_ro_account_period_closing_wizard_user,l10n.ro.account.period.closing.wizard.user,l10n.ro.account.period.closing.wizard,account.group_account_manager,crud,
