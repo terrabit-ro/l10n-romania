@@ -30,15 +30,16 @@ class ResPartner(models.Model):
 
     @api.model
     def update_l10n_ro_vat_subjected(self):  # noqa C901
-        get_param = self.env["ir.config_parameter"].sudo().get_param
-        anaf_url = get_param("l10n_ro_fiscal_validation.anaf_bulk_url", ANAF_BULK_URL)
-        anaf_api_key_header_tag = get_param(
+        ir_config = self.env["ir.config_parameter"].sudo()
+        get_str = ir_config.get_str
+        anaf_url = get_str("l10n_ro_fiscal_validation.anaf_bulk_url", ANAF_BULK_URL)
+        anaf_api_key_header_tag = get_str(
             "l10n_ro_partner_create_by_vat.anaf_api_key_header_tag", "x-api-key"
         )
-        anaf_api_key = get_param("l10n_ro_partner_create_by_vat.anaf_api_key", "")
+        anaf_api_key = get_str("l10n_ro_partner_create_by_vat.anaf_api_key", "")
         if anaf_api_key:
             headers.update({anaf_api_key_header_tag: anaf_api_key})
-        anaf_corr = get_param("l10n_ro_fiscal_validation.anaf_corr", ANAF_CORR)
+        anaf_corr = get_str("l10n_ro_fiscal_validation.anaf_corr", ANAF_CORR)
         anaf_dict = []
         check_date = fields.Date.to_string(fields.Date.today())
         # Build list of vat numbers to be checked on ANAF
@@ -47,7 +48,7 @@ class ResPartner(models.Model):
         chunk = []
         chunks = []
         # Process 500 vat numbers once
-        max_no = int(get_param("l10n_ro_fiscal_validation.anaf_bulk_number", 499))
+        max_no = ir_config.get_int("l10n_ro_fiscal_validation.anaf_bulk_number", 499)
         for position in range(0, len(anaf_dict), max_no):
             chunk = anaf_dict[position : position + max_no]
             chunks.append(chunk)
@@ -91,12 +92,23 @@ class ResPartner(models.Model):
                                     ("l10n_ro_vat_number", "=", vat),
                                     ("is_company", "=", True),
                                 ]
-                            )
+                            )._l10n_ro_filter_commercial_entities()
                             for partner in partners:
                                 data = partner._Anaf_to_Odoo(result_partner)
                                 partner.update(data)
             except Exception as e:
                 _logger.warning(f"ANAF sync not working: {e}")
+
+    def _l10n_ro_filter_commercial_entities(self):
+        """Keep only the commercial entities (not their contacts).
+
+        Odoo 20: ``is_company`` is computed. In ``base`` it means "own commercial
+        entity with a VAT number", but ``l10n_ro_edi`` overrides it for Romanian
+        partners to "valid company CUI" only, so the contacts of a company, which
+        receive the company VAT number, are flagged as companies too. Without this
+        filter the ANAF data (name, address...) would overwrite the contacts.
+        """
+        return self.filtered(lambda p: p.commercial_partner_id == p)
 
     @api.model
     def update_l10n_ro_vat_subjected_all(self):
@@ -106,7 +118,7 @@ class ResPartner(models.Model):
             ("country_id", "=", self.env.ref("base.ro").id),
             ("is_company", "=", True),
         ]
-        partners = self.search(domain)
+        partners = self.search(domain)._l10n_ro_filter_commercial_entities()
         partners.update_l10n_ro_vat_subjected()
 
     @api.model
