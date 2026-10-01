@@ -92,6 +92,21 @@ class ResPartner(models.Model):
                 partner.vat = ro_vat
         return res
 
+    def _compute_is_company(self):
+        """Only a commercial entity can be a company.
+
+        ``base`` computes ``is_company`` as "own commercial entity and has a VAT",
+        but ``l10n_ro_edi`` replaces it for Romanian partners with a check of the
+        CUI alone, without calling ``super()``. Contacts inherit the CUI of their
+        company, so every contact of a Romanian company became a company too.
+        Restore the commercial-entity condition on top of both computations.
+        """
+        res = super()._compute_is_company()
+        for partner in self:
+            if partner.commercial_partner_id != partner:
+                partner.is_company = False
+        return res
+
     @api.onchange("l10n_ro_vat_subjected")
     def onchange_l10n_ro_vat_subjected(self):
         if (
