@@ -186,6 +186,41 @@ class TestVATonpayment(AccountTestInvoicingCommon):
             _logger.info("Server ANAF is down.")
             return True
 
+    def test_update_vat_payment_all_commercial_entity(self):
+        """The daily cron checks the companies, never their contacts, and reads
+        the check date on the company: a contact, which never gets one, must not
+        bring back a company already checked today."""
+        contact = self.partner_model.with_context(no_vat_validation=True).create(
+            {
+                "name": "Contact FBR",
+                "parent_id": self.fbr_partner.id,
+                "type": "contact",
+            }
+        )
+        self.assertEqual(contact.vat, self.fbr_partner.vat)
+        self.fbr_partner.l10n_ro_vat_payment_check_date = False
+        checked = []
+
+        def check_vat_on_payment(partners):
+            checked.append(partners)
+
+        with (
+            patch.object(
+                type(self.partner_model), "check_vat_on_payment", check_vat_on_payment
+            ),
+            patch.object(
+                type(self.partner_anaf_model), "_download_anaf_data", lambda self: None
+            ),
+        ):
+            self.partner_model.update_vat_payment_all()
+            self.assertIn(self.fbr_partner, checked[0])
+            self.assertNotIn(contact, checked[0])
+
+            checked.clear()
+            self.fbr_partner.l10n_ro_vat_payment_check_date = date.today()
+            self.partner_model.update_vat_payment_all()
+            self.assertNotIn(self.fbr_partner, checked[0] if checked else [])
+
     def test_invoice_fp(self):
         """The VAT on payment fiscal position must be applied on programmatic
         creation (no onchange), for Romanian VAT-on-payment partners."""

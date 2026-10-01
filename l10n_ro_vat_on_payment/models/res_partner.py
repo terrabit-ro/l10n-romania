@@ -117,16 +117,22 @@ class ResPartner(models.Model):
     def update_vat_payment_all(self):
         ir_config = self.env["ir.config_parameter"].sudo()
         self.env["l10n.ro.res.partner.anaf"]._download_anaf_data()
+        # The contacts of a company carry its VAT too: check their commercial
+        # entity, as l10n_ro_edi does for B2B/B2C. The check date is read on the
+        # commercial entity as well, the contacts never get one.
         partners = self.search(
             [
                 ("vat", "!=", False),
                 ("country_id.code", "=", "RO"),
-                ("is_company", "=", True),
                 "|",
-                ("l10n_ro_vat_payment_check_date", "=", False),
-                ("l10n_ro_vat_payment_check_date", "<", date.today()),
+                ("commercial_partner_id.l10n_ro_vat_payment_check_date", "=", False),
+                (
+                    "commercial_partner_id.l10n_ro_vat_payment_check_date",
+                    "<",
+                    date.today(),
+                ),
             ]
-        )
+        ).commercial_partner_id.filtered("is_company")
         batch_size = ir_config.get_int(
             "l10n_ro_vat_on_payment.partner_batch_size", 1000
         )
