@@ -25,7 +25,9 @@ class AccountPaymentCheck(models.AbstractModel):
             and payment.partner_type == "customer"
             and payment.journal_id.type == "cash"
         ):
-            if payment.partner_id.is_company:
+            # The cash limit depends on the commercial entity: a payment made
+            # by a contact of a company falls under the company limit.
+            if payment.partner_id.commercial_partner_id.is_company:
                 if payment.amount > amount_company_limit:
                     raise ValidationError(
                         self.env._(

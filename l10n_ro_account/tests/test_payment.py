@@ -79,6 +79,28 @@ class TestAccountPayment(TransactionCase):
                 }
             )
 
+    def test_create_payment_contact_of_company(self):
+        """A contact of a company pays under the company limit: the limit is
+        chosen on the commercial entity, not on the contact."""
+        contact = self.env["res.partner"].create(
+            {
+                "name": "Contact Persoana",
+                "parent_id": self.partner_company.id,
+                "type": "contact",
+            }
+        )
+        self.assertEqual(contact.commercial_partner_id, self.partner_company)
+        with self.assertRaises(ValidationError):
+            self.env["account.payment"].create(
+                {
+                    "payment_type": "inbound",
+                    "partner_type": "customer",
+                    "partner_id": contact.id,
+                    "amount": 6000,
+                    "journal_id": self.journal.id,
+                }
+            )
+
     def test_payment_write_error(self):
         payment = self.env["account.payment"].create(
             {
