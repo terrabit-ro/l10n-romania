@@ -15,7 +15,7 @@
         "wizard/res_config_settings_views.xml",
     ],
     "license": "AGPL-3",
-    "version": "20.0.2.13.0",
+    "version": "20.0.2.13.1",
     "author": "Terrabit,Odoo Community Association (OCA)",
     "website": "https://github.com/OCA/l10n-romania",
     "installable": True,

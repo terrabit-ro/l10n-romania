@@ -88,27 +88,24 @@ class ResPartner(models.Model):
                         vat = result_partner.get("date_generale").get("cui")
                         if vat:
                             partners = self.search(
-                                [
-                                    ("l10n_ro_vat_number", "=", vat),
-                                    ("is_company", "=", True),
-                                ]
-                            )._l10n_ro_filter_commercial_entities()
+                                [("l10n_ro_vat_number", "=", vat)]
+                            )._l10n_ro_commercial_companies()
                             for partner in partners:
                                 data = partner._Anaf_to_Odoo(result_partner)
                                 partner.update(data)
             except Exception as e:
                 _logger.warning(f"ANAF sync not working: {e}")
 
-    def _l10n_ro_filter_commercial_entities(self):
-        """Keep only the commercial entities (not their contacts).
+    def _l10n_ro_commercial_companies(self):
+        """Return the companies the partners belong to, never their contacts.
 
-        Odoo 20: ``is_company`` is computed. In ``base`` it means "own commercial
-        entity with a VAT number", but ``l10n_ro_edi`` overrides it for Romanian
-        partners to "valid company CUI" only, so the contacts of a company, which
-        receive the company VAT number, are flagged as companies too. Without this
-        filter the ANAF data (name, address...) would overwrite the contacts.
+        Odoo 20: ``is_company`` is computed. ``l10n_ro_edi`` decides it for the
+        Romanian partners from the CUI alone, so the contacts of a company, which
+        receive the company VAT number, can be flagged as companies too. Like
+        ``l10n_ro_edi`` (B2B/B2C), look at the commercial entity instead: the ANAF
+        data (name, address...) must only be written on the company itself.
         """
-        return self.filtered(lambda p: p.commercial_partner_id == p)
+        return self.commercial_partner_id.filtered("is_company")
 
     @api.model
     def update_l10n_ro_vat_subjected_all(self):
@@ -116,9 +113,8 @@ class ResPartner(models.Model):
             ("l10n_ro_vat_number", "!=", False),
             ("l10n_ro_vat_number", "!=", ""),
             ("country_id", "=", self.env.ref("base.ro").id),
-            ("is_company", "=", True),
         ]
-        partners = self.search(domain)._l10n_ro_filter_commercial_entities()
+        partners = self.search(domain)._l10n_ro_commercial_companies()
         partners.update_l10n_ro_vat_subjected()
 
     @api.model

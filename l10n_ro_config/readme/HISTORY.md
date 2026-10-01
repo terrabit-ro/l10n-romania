@@ -1,14 +1,13 @@
-## 20.0.0.9.1
+## 20.0.0.9.2
 
-- Contacts of a Romanian company are no longer flagged as companies. In Odoo 20
-  `is_company` is computed (own commercial entity + VAT), but `l10n_ro_edi`
-  replaces the computation for Romanian partners with a check of the CUI alone,
-  without the commercial-entity condition. Contacts inherit the CUI of their
-  company, so they all became companies, and the searches on
-  `("is_company", "=", True)` (ANAF fiscal validation, SPV messages, VAT on
-  payment) could pick a contact instead of the company. The module now depends
-  on `l10n_ro_edi` and restores the condition; the migration recomputes
-  `is_company` on existing contacts.
+- Use the standard `is_company` again: the override restoring the
+  commercial-entity condition and the dependency on `l10n_ro_edi` are removed.
+  For a Romanian partner `l10n_ro_edi` decides it from the CUI (valid CUI:
+  company, CNP / NIF: natural person), so the contacts of a company, which
+  carry its CUI, are flagged as companies too. The Romanian modules now look
+  at the commercial entity (`commercial_partner_id.is_company`), as
+  `l10n_ro_edi` does for B2B/B2C, and the company-only fields of the partner
+  form are hidden on contacts.
 
 ## 19.0.0.8.1
 

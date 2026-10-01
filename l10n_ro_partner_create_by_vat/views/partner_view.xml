@@ -11,7 +11,7 @@
                 <field
                     name="l10n_ro_old_name"
                     placeholder="Old Name"
-                    invisible="not is_company"
+                    invisible="not is_company or parent_id"
                 />
             </field>
         </field>

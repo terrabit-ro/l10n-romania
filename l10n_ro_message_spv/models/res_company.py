@@ -110,20 +110,26 @@ class ResCompany(models.Model):
             ("company_id", "=", False),
         ]
 
-        def _search(extra_domain):
+        def _search(extra_domain, companies_only=True):
             for variant in cif_variants:
-                result = self.env["res.partner"].search(
-                    [("vat", "=ilike", variant)] + extra_domain, limit=1
+                # The contacts of a company carry its CIF too: keep their
+                # commercial entity, as l10n_ro_edi does for B2B/B2C.
+                result = (
+                    self.env["res.partner"]
+                    .search([("vat", "=ilike", variant)] + extra_domain)
+                    .commercial_partner_id
                 )
+                if companies_only:
+                    result = result.filtered("is_company")
                 if result:
-                    return result
+                    return result[:1]
             return self.env["res.partner"]
 
-        partner = _search([("is_company", "=", True), ("company_id", "=", company_id)])
-        if not partner:
-            partner = _search([("is_company", "=", True)] + company_domain)
+        partner = _search([("company_id", "=", company_id)])
         if not partner:
             partner = _search(company_domain)
+        if not partner:
+            partner = _search(company_domain, companies_only=False)
         if not partner:
             partner = self.env["res.partner"].create(
                 {
