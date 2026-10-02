@@ -382,11 +382,15 @@ location merchandise type, if it’s Merchandise in Store or Warehouse.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
 <li><a class="reference internal" href="#installation" id="toc-entry-1">Installation</a></li>
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-2">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-3">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-4">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-5">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-6">Maintainers</a></li>
+<li><a class="reference internal" href="#known-issues-roadmap" id="toc-entry-2">Known issues / Roadmap</a><ul>
+<li><a class="reference internal" href="#retire-l10n-ro-net-weight" id="toc-entry-3">Retire <tt class="docutils literal">l10n_ro_net_weight</tt></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-4">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-5">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-6">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-7">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-8">Maintainers</a></li>
 </ul>
 </li>
 </ul>
@@ -403,8 +407,34 @@ location merchandise type, if it’s Merchandise in Store or Warehouse.</p>
 <li>install the module</li>
 </ul>
 </div>
+<div class="section" id="known-issues-roadmap">
+<h2><a class="toc-backref" href="#toc-entry-2">Known issues / Roadmap</a></h2>
+<div class="section" id="retire-l10n-ro-net-weight">
+<h3><a class="toc-backref" href="#toc-entry-3">Retire <tt class="docutils literal">l10n_ro_net_weight</tt></a></h3>
+<p>The field duplicates the Odoo model: <tt class="docutils literal">product.weight</tt> is the weight of
+the product (net) and the gross weight is net + packaging
+(<tt class="docutils literal">stock.package.shipping_weight</tt>). Nothing in Odoo
+Community/Enterprise (including <tt class="docutils literal">l10n_ro_edi_stock</tt>, which declares
+<tt class="docutils literal">product.weight</tt> as net weight) reads the field.</p>
+<ol class="arabic simple">
+<li>Before removing it, make sure no module in the customer’s database
+reads it (<tt class="docutils literal">deltatech_invoice_weight</tt>, <tt class="docutils literal">deltatech_cmr_document</tt>,
+<tt class="docutils literal">l10n_ro_hide_net_weight</tt> are being cleaned up).</li>
+<li>Remove <tt class="docutils literal">l10n_ro_net_weight</tt>, <tt class="docutils literal">l10n_ro_net_weight_uom_name</tt>, the
+computes/inverse on <tt class="docutils literal">product.template</tt> and the field on
+<tt class="docutils literal">product.product</tt> (<tt class="docutils literal">models/product_template.py</tt>), the product
+form view <tt class="docutils literal">views/product_template_view.xml</tt> and the assertions in
+<tt class="docutils literal">tests/test_stock_warehouse_creation.py</tt>.</li>
+<li>Migration: if values differ from <tt class="docutils literal">weight</tt> on a database, decide per
+customer (move the difference to the package type <tt class="docutils literal">base_weight</tt>, or
+keep the column with an <tt class="docutils literal">openupgrade.drop_columns</tt> only after
+confirmation); the field is not part of any declaration sent to ANAF.</li>
+<li>Remove <tt class="docutils literal">l10n_ro_hide_net_weight</tt> once the field is gone.</li>
+</ol>
+</div>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-2">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-4">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/l10n-romania/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -412,9 +442,9 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-3">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-5">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-4">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-6">Authors</a></h3>
 <ul class="simple">
 <li>NextERP Romania</li>
 <li>Dorin Hongu</li>
@@ -422,7 +452,7 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-5">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-7">Contributors</a></h3>
 <ul class="simple">
 <li><a class="reference external" href="https://www.nexterp.ro">NextERP Romania</a>:<ul>
 <li>Fekete Mihai &lt;<a class="reference external" href="mailto:feketemihai&#64;nexterp.ro">feketemihai&#64;nexterp.ro</a>&gt;</li>
@@ -434,7 +464,7 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 technical issues.</p>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-6">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-8">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />
