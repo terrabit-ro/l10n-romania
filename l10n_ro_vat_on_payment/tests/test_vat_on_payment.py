@@ -186,6 +186,22 @@ class TestVATonpayment(AccountTestInvoicingCommon):
             _logger.info("Server ANAF is down.")
             return True
 
+    def test_vat_on_payment_removed_without_ro_prefix(self):
+        """A partner that left VAT on payment together with its VAT registration
+        has a CUI without the RO prefix; the ANAF removal must still clear the flag."""
+        partner = self.partner_model.create(
+            {
+                "name": "Former VAT payer",
+                "vat": "9454558",
+                "country_id": self.env.ref("base.ro").id,
+                "is_company": True,
+            }
+        )
+        partner.l10n_ro_vat_on_payment = True
+        partner.check_vat_on_payment()
+        self.assertEqual(len(partner.l10n_ro_anaf_history), 4)
+        self.assertFalse(partner.l10n_ro_vat_on_payment)
+
     def test_invoice_fp(self):
         """The VAT on payment fiscal position must be applied on programmatic
         creation (no onchange), for Romanian VAT-on-payment partners."""
