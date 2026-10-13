@@ -43,10 +43,12 @@ class ResPartner(models.Model):
             if strdate != "":
                 return datetime.strptime(str(strdate), "%Y%m%d").strftime(DATE_FORMAT)
 
+        # A partner that lost its VAT registration keeps its CUI without the RO
+        # prefix, but its exit from VAT on payment must still be loaded.
         vat_numbers = [
             p.l10n_ro_vat_number
             for p in self
-            if p.vat and p.vat.lower().startswith("ro") and p.vat[2:].isnumeric()
+            if p.l10n_ro_vat_number and p.l10n_ro_vat_number.isdigit()
         ]
         if vat_numbers == []:
             return
