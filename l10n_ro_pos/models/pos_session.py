@@ -4,38 +4,65 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
 
-from odoo import models
+from odoo import Command, models
 
 
 class PosSession(models.Model):
     _inherit = "pos.session"
 
-    def _reconcile_account_move_lines(self, data):
-        if self.company_id.l10n_ro_accounting:
-            data["stock_output_lines"] = {}
-        return super()._reconcile_account_move_lines(data)
-
-    def _accumulate_amounts(self, data):
-        data = super()._accumulate_amounts(data)
-        if self.company_id.l10n_ro_accounting:
-            # nu trebuie generate note contabile
-            # pentru ca acestea sunt generate in miscarea de stoc.
-            # In Odoo 19 cheile sunt dict-uri grupate pe cont (defaultdict),
-            # consumate cu .items() => fiecare valoare trebuie sa fie un dict
-            # {amount, amount_converted}. Le golim ca sa nu se genereze linii.
-            #
-            # IMPORTANT: trebuie golit si "stock_valuation". Core-ul O19 il
-            # consuma separat in _create_stock_valuation_lines (apelat din
-            # _create_account_move), iar contrapartida sa (stock_output) e deja
-            # golita aici. Daca lasam "stock_valuation" populat, se genereaza o
-            # linie de valorizare fara contrapartida => nota de inchidere iese
-            # dezechilibrata exact cu costul marfii al comenzilor nefacturate.
-            data.update(
-                {
-                    "stock_expense": {},
-                    "stock_return": {},
-                    "stock_output": {},
-                    "stock_valuation": {},
-                }
+    def _get_l10n_ro_stock_closing_accounts(self, orders):
+        """Conturile folosite de pos_stock pentru liniile de stoc din nota de
+        inchidere (cheltuiala, mapata prin pozitia fiscala, si valorizarea
+        stocului), pentru miscarile valorizate in timp real ale comenzilor."""
+        not_linked_to_order = self.picking_ids.filtered(lambda p: not p.pos_order_id)
+        linked_to_order = orders.filtered(lambda o: not o.shipping_date).picking_ids
+        pickings = not_linked_to_order | linked_to_order
+        accounts = self.env["account.account"]
+        if not pickings:
+            return accounts
+        stock_moves = (
+            self.env["stock.move"]
+            .sudo()
+            .search(
+                [
+                    ("picking_id", "in", pickings.ids),
+                    ("product_id.valuation", "=", "real_time"),
+                    ("product_id.is_storable", "=", True),
+                ]
             )
-        return data
+        )
+        for move in stock_moves:
+            product_accounts = move.with_company(
+                move.company_id
+            ).product_id._get_product_accounts()
+            expense = product_accounts["expense"]
+            pos_order = move.picking_id.pos_order_id
+            if pos_order and pos_order.fiscal_position_id:
+                expense = pos_order.fiscal_position_id.map_account(expense)
+            accounts |= expense | product_accounts["stock_valuation"]
+        return accounts
+
+    def _prepare_session_closing_extra_line_commands(
+        self, orders, refund, payments=None
+    ):
+        lines = super()._prepare_session_closing_extra_line_commands(
+            orders, refund, payments=payments or []
+        )
+        if not self.company_id.l10n_ro_accounting or not lines:
+            return lines
+        # Nu trebuie generate note contabile de stoc (cheltuiala / valorizare)
+        # in nota de inchidere a sesiunii: acestea sunt generate in miscarea de
+        # stoc. In Odoo 20 liniile sunt adaugate de pos_stock in acest hook
+        # (in 19 erau cheile stock_* din _accumulate_amounts).
+        stock_accounts = self._get_l10n_ro_stock_closing_accounts(orders)
+        if not stock_accounts:
+            return lines
+        return [
+            line
+            for line in lines
+            if not (
+                line[0] == Command.CREATE
+                and not line[2].get("display_type")
+                and line[2].get("account_id") in stock_accounts.ids
+            )
+        ]

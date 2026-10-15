@@ -10,7 +10,8 @@ patch(PaymentScreenStatus.prototype, {
 
         for (let i = 0; i < paymentlines.length; i++) {
             const line = paymentlines[i];
-            if (line.payment_method_id.is_cash_count) {
+            // Odoo 20: is_cash_count a fost eliminat (era type === "cash")
+            if (line.payment_method_id.type === "cash") {
                 value += line.amount;
             }
         }

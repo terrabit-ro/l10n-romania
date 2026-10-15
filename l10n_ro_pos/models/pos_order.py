@@ -12,6 +12,8 @@ class PosOrder(models.Model):
 
     def _prepare_invoice_vals(self):
         vals = super()._prepare_invoice_vals()
-        if self.is_l10n_ro_record and self.pos_reference:
+        # In Odoo 20 metoda se apeleaza si pe mai multe comenzi (facturare
+        # globala); referinta = bonul fiscal are sens doar pentru o comanda.
+        if len(self) == 1 and self.is_l10n_ro_record and self.pos_reference:
             vals["ref"] = self.pos_reference
         return vals

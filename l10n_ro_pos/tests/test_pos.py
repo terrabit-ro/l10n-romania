@@ -1,13 +1,15 @@
 from odoo.fields import Command
 from odoo.tests import tagged
 
-from odoo.addons.point_of_sale.tests.common import CommonPosTest
+from odoo.addons.pos_stock.tests.common import CommonPosStockTest
 
 
 @tagged("post_install", "-at_install")
-class TestReportPoSOrder(CommonPosTest):
+class TestReportPoSOrder(CommonPosStockTest):
+    # Odoo 20: stocul din POS e in pos_stock; CommonPosStockTest aduce
+    # company_data["default_warehouse"] (in 19 era in CommonPosTest).
     @classmethod
-    @CommonPosTest.setup_country("ro")
+    @CommonPosStockTest.setup_country("ro")
     def setUpClass(cls):
         super().setUpClass()
         cls.env.company.anglo_saxon_accounting = True
@@ -39,6 +41,12 @@ class TestReportPoSOrder(CommonPosTest):
                 "name": "Marfa",
                 "property_valuation": "real_time",
                 "property_cost_method": "fifo",
+                "property_stock_valuation_account_id": cls.company_data[
+                    "default_account_stock_valuation"
+                ].id,
+                "property_account_expense_categ_id": cls.company_data[
+                    "default_account_expense"
+                ].id,
             }
         )
 
@@ -61,6 +69,26 @@ class TestReportPoSOrder(CommonPosTest):
                 "account_type": "income",
             }
         )
+
+    def _seed_stock(self, qty=10.0, price_unit=60.0):
+        """Receptie de stoc, ca iesirea din POS sa fie valorizata."""
+        warehouse = self.company_data["default_warehouse"]
+        receipt = self.env["stock.move"].create(
+            {
+                "product_id": self.product_a.id,
+                "uom_id": self.product_a.uom_id.id,
+                "product_uom_qty": qty,
+                "location_id": self.env.ref("stock.stock_location_suppliers").id,
+                "location_dest_id": warehouse.lot_stock_id.id,
+                "price_unit": price_unit,
+            }
+        )
+        receipt._action_confirm()
+        receipt._action_assign()
+        receipt.move_line_ids.quantity = qty
+        receipt.picked = True
+        receipt._action_done()
+        return receipt
 
     def test_order_invoice_reference(self):
         """Test that the invoice created from a POS order has the correct reference."""
@@ -126,24 +154,7 @@ class TestReportPoSOrder(CommonPosTest):
 
         # Seedam stoc (receptie 10 buc @ cost 60), ca iesirea sa fie valorizata
         # si sa nu cadem pe constraintul de stoc negativ.
-        warehouse = self.company_data["default_warehouse"]
-        stock_location = warehouse.lot_stock_id
-        supplier_location = self.env.ref("stock.stock_location_suppliers")
-        receipt = self.env["stock.move"].create(
-            {
-                "product_id": self.product_a.id,
-                "product_uom": self.product_a.uom_id.id,
-                "product_uom_qty": 10.0,
-                "location_id": supplier_location.id,
-                "location_dest_id": stock_location.id,
-                "price_unit": 60.0,
-            }
-        )
-        receipt._action_confirm()
-        receipt._action_assign()
-        receipt.move_line_ids.quantity = 10.0
-        receipt.picked = True
-        receipt._action_done()
+        self._seed_stock()
 
         # Scenariu real: o comanda POS cu un produs cu cost
         self.pos_config_usd.open_ui()
@@ -200,8 +211,13 @@ class TestReportPoSOrder(CommonPosTest):
         )
         self.assertGreater(res["total_stock_amount"], 0.0)
 
-    def test_session_accumulate_amounts(self):
-        """Test that the amounts are accumulated correctly in the session."""
+    def test_session_closing_without_stock_lines(self):
+        """Nota de inchidere a sesiunii nu contine linii de stoc (cheltuiala /
+        valorizare) cand compania are l10n_ro_accounting: acestea sunt generate
+        de miscarea de stoc. In Odoo 20 pos_stock le adauga prin
+        _prepare_session_closing_extra_line_commands (in 19: _accumulate_amounts).
+        """
+        self._seed_stock()
         self.pos_config_usd.open_ui()
         session = self.pos_config_usd.current_session_id
 
@@ -211,7 +227,7 @@ class TestReportPoSOrder(CommonPosTest):
             "amount_tax": 0,
             "amount_total": 100.0,
             "date_order": "2024-01-01 10:00:00",
-            "name": "Order 0001",
+            "name": "Order 0002",
             "partner_id": self.ro_partner.id,
             "session_id": session.id,
             "lines": [
@@ -233,52 +249,27 @@ class TestReportPoSOrder(CommonPosTest):
                     }
                 )
             ],
-            "uuid": "0001",
-            "to_invoice": True,
+            "uuid": "0002",
         }
-
         result = self.env["pos.order"].sync_from_ui([order_data])
-        order_id = result["pos.order"][0]["id"]
-        order = self.env["pos.order"].browse(order_id)
+        order = self.env["pos.order"].browse(result["pos.order"][0]["id"])
+        self.assertTrue(order.picking_ids, "Comanda trebuie sa genereze livrarea")
 
-        # Validare comandă și creare factură
-        order.action_pos_order_invoice()
-        data = session._accumulate_amounts({})
-        self.assertIn(
-            "stock_expense",
-            data,
-            "Trebuie să existe cheile pentru stoc în datele acumulate",
+        stock_accounts = session._get_l10n_ro_stock_closing_accounts(order)
+        self.assertTrue(stock_accounts)
+
+        # Fara contabilitate RO, pos_stock adauga liniile de stoc (control).
+        self.env.company.l10n_ro_accounting = False
+        lines = session._prepare_session_closing_extra_line_commands(order, False)
+        self.assertTrue(
+            any(line[2].get("account_id") in stock_accounts.ids for line in lines),
+            "pos_stock trebuie sa genereze linii de stoc in afara contabilitatii RO",
         )
-        self.assertIn(
-            "stock_return",
-            data,
-            "Trebuie să existe cheile pentru stoc în datele acumulate",
+
+        # Cu contabilitate RO, liniile de stoc sunt eliminate.
+        self.env.company.l10n_ro_accounting = True
+        lines = session._prepare_session_closing_extra_line_commands(order, False)
+        self.assertFalse(
+            any(line[2].get("account_id") in stock_accounts.ids for line in lines),
+            "Nu trebuie generate note contabile de stoc la inchiderea sesiunii",
         )
-        self.assertIn(
-            "stock_output",
-            data,
-            "Trebuie să existe cheile pentru stoc în datele acumulate",
-        )
-        self.assertIn(
-            "stock_valuation",
-            data,
-            "Trebuie să existe cheile pentru stoc în datele acumulate",
-        )
-        # Cheile de stoc trebuie să fie dict-uri goale, deoarece nu se generează
-        # note contabile pentru stoc în l10n_ro_accounting (sunt generate în
-        # mișcarea de stoc). În Odoo 19 aceste structuri sunt grupate pe cont și
-        # consumate cu .items() la închiderea sesiunii — fiecare valoare ar fi
-        # trebuit să fie un dict {amount, amount_converted}, deci golirea lor
-        # previne generarea liniilor (și TypeError-ul de la iterare).
-        #
-        # "stock_valuation" trebuie golit explicit: e consumat separat de core în
-        # _create_stock_valuation_lines, iar dacă rămâne populat generează o linie
-        # de valorizare fără contrapartidă (stock_output e golit) => notă de
-        # închidere dezechilibrată cu costul mărfii comenzilor nefacturate.
-        for key in ["stock_expense", "stock_return", "stock_output", "stock_valuation"]:
-            self.assertEqual(
-                data[key],
-                {},
-                f"Cheia {key} ar trebui să fie goală deoarece nu se generează \
-                note contabile pentru stoc",
-            )

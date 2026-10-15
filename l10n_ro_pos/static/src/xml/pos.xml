@@ -5,11 +5,13 @@
         t-inherit="point_of_sale.PaymentScreenStatus"
         t-inherit-mode="extension"
     >
-        <xpath expr="//section" position="before">
-            <div t-if="warningMessage=='L5000'" class="limit-warning">
+        <!-- Inaintea lantului t-if / t-elif din core (nu intre div si section,
+             altfel t-elif-ul section-ului s-ar lega de avertismentul nostru) -->
+        <xpath expr="//div[contains(@t-if, 'payment_ids.length')]" position="before">
+            <div t-if="this.warningMessage == 'L5000'" class="limit-warning">
                 <span>Sale to individuals only..</span>
             </div>
-            <div t-if="warningMessage=='L10000'" class="limit-error">
+            <div t-if="this.warningMessage == 'L10000'" class="limit-error">
                 <span>A cash sale of more than 10,000 lei cannot be made.</span>
             </div>
         </xpath>
