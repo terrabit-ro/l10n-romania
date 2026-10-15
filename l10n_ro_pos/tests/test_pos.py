@@ -160,10 +160,10 @@ class TestReportPoSOrder(CommonPosStockTest):
         self.pos_config_usd.open_ui()
         session = self.pos_config_usd.current_session_id
         order_data = {
-            "amount_paid": 100.0,
+            "amount_paid": 200.0,
             "amount_return": 0,
             "amount_tax": 0,
-            "amount_total": 100.0,
+            "amount_total": 200.0,
             "date_order": "2024-01-01 10:00:00",
             "name": "Order SD01",
             "partner_id": self.ro_partner.id,
@@ -182,7 +182,7 @@ class TestReportPoSOrder(CommonPosStockTest):
             "payment_ids": [
                 Command.create(
                     {
-                        "amount": 100.0,
+                        "amount": 200.0,
                         "payment_method_id": self.cash_payment_method.id,
                     }
                 )
