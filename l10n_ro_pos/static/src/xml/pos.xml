@@ -5,7 +5,9 @@
         t-inherit="point_of_sale.PaymentScreenStatus"
         t-inherit-mode="extension"
     >
-        <xpath expr="//section" position="before">
+        <!-- Inaintea lantului t-if / t-else din core (nu intre div si section,
+             altfel t-else-ul section-ului s-ar lega de avertismentul nostru) -->
+        <xpath expr="//div[contains(@t-if, 'payment_ids.length')]" position="before">
             <div t-if="warningMessage=='L5000'" class="limit-warning">
                 <span>Sale to individuals only..</span>
             </div>
