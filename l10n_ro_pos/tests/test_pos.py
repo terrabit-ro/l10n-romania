@@ -211,6 +211,17 @@ class TestReportPoSOrder(CommonPosStockTest):
         )
         self.assertGreater(res["total_stock_amount"], 0.0)
 
+    def test_sale_details_default_date_start(self):
+        """date_stop fara date_start: intervalul implicit nu mai amesteca
+        datetime cu fus orar si fara fus (TypeError la comparatie)."""
+        report = self.env["report.point_of_sale.report_saledetails"].with_context(
+            tz="Europe/Bucharest"
+        )
+        # date_stop in trecut (< date_start implicit = azi) si in viitor
+        for date_stop in ("2000-01-01 23:59:59", "2999-12-31 23:59:59"):
+            res = report.get_sale_details(date_stop=date_stop)
+            self.assertIn("total_stock_amount", res)
+
     def test_sale_details_refund_stock_columns(self):
         """Coloanele de stoc apar si pe randurile din sectiunea Refunds."""
         arch = self.env.ref("point_of_sale.pos_session_sales_details")
