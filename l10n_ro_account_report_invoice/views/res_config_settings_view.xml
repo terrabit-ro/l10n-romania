@@ -14,7 +14,8 @@
                     <div class="o_setting_right_pane">
                         <label for="l10n_ro_no_signature_text" />
                         <span
-                            class="fa fa-lg fa-building-o"
+                            class="oi oi-lg"
+                            data-icon="business"
                             title="Values set here are company-specific."
                             aria-label="Values set here are company-specific."
                             groups="base.group_multi_company"
