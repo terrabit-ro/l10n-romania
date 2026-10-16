@@ -46,7 +46,7 @@
                             name="action_view_landed_costs"
                             string="Landed Costs"
                             class="oe_stat_button"
-                            icon="fa-bars"
+                            icon="menu"
                             type="object"
                             invisible="landed_cost_ids == []"
                         />

@@ -448,7 +448,7 @@ class AccountDVILine(models.Model):
         readonly=True,
         check_company=True,
     )
-    name = fields.Char(related="invoice_line_id.name", readonly=True)
+    name = fields.Text(related="invoice_line_id.name", readonly=True)
     product_id = fields.Many2one(related="invoice_line_id.product_id", readonly=True)
     product_uom_id = fields.Many2one(
         related="invoice_line_id.product_uom_id", readonly=True
@@ -459,7 +459,7 @@ class AccountDVILine(models.Model):
     line_qty = fields.Float(
         string="DVI Quantity",
         default=1.0,
-        digits="Product Unit of Measure",
+        digits="Product Unit",
         help="The quantity declared in the DVI.",
     )
     base_amount = fields.Float(compute="_compute_base_vat_amount")
