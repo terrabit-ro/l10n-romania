@@ -20,10 +20,10 @@ class TestMT940BankStatementImport(AccountTestInvoicingCommon):
     def create_partner_bank(self, bank_acc):
         bank = self.env["res.partner.bank"].create(
             {
-                "acc_number": bank_acc,
+                "account_number": bank_acc,
                 "partner_id": self.env.company.partner_id.id,
                 "company_id": self.env.company.id,
-                "bank_id": self.env.ref("base.res_bank_1").id,
+                "bank_name": "Test Bank",
             }
         )
         return bank
@@ -31,7 +31,7 @@ class TestMT940BankStatementImport(AccountTestInvoicingCommon):
     def create_journal(self, code, partner_bank, currency):
         journal = self.env["account.journal"].create(
             {
-                "name": partner_bank.acc_number,
+                "name": partner_bank.account_number,
                 "code": code,
                 "type": "bank",
                 "bank_account_id": partner_bank.id,
@@ -42,7 +42,7 @@ class TestMT940BankStatementImport(AccountTestInvoicingCommon):
 
     def _load_statement(self, testfile, mt940_type="mt940_general"):
         with open(testfile, "rb") as datafile:
-            stmt_file = base64.b64encode(datafile.read())
+            stmt_file = base64.b64encode(datafile.read()).decode()
             self.env["account.statement.import"].with_context(type=mt940_type).create(
                 {
                     "statement_filename": "test import",
