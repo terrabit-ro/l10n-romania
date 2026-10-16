@@ -12,5 +12,5 @@ class AccountBankStatementLine(models.Model):
         """Print the receipt associated with the bank statement line"""
         self.ensure_one()
         return self.env.ref("account.action_report_payment_receipt").report_action(
-            self.payment_id
+            self.payment_ids[:1]
         )
