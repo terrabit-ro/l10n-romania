@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+acces_stock_landed_cost,acces_stock_landed_cost,stock.landed.cost,base.group_user,crud,
+acces_l10n_ro_account_dvi,acces_account_dvi,l10n.ro.account.dvi,base.group_user,cru,
+acces_l10n_ro_account_dvi_ac,acces_account_dvi_account,l10n.ro.account.dvi,account.group_account_user,crud,
+acces_l10n_ro_account_dvi_line,acces_account_dvi_line,l10n.ro.account.dvi.line,base.group_user,crud,
