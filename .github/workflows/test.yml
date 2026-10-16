@@ -108,8 +108,23 @@ jobs:
             echo "Changed addons: $ADDONS"
             echo "addons=$ADDONS" >> "$GITHUB_OUTPUT"
           fi
+      # l10n_ro_account_bank_statement_import_mt940_base depinde de
+      # account_statement_import_file, pe care OCA nu l-a publicat încă pe PyPI pentru
+      # 20.0: îl luăm din fork-ul nostru public dhongu/others_addons. Instalate din clonă
+      # cu --no-deps, cerința `==20.0.*` scrisă de whool e deja satisfăcută.
+      - name: Checkout others_addons
+        run: |
+          git clone --depth 1 https://github.com/dhongu/others_addons.git -b 20.0 /tmp/others_addons
       - name: Install addons and dependencies
-        run: oca_install_addons
+        run: |
+          for addon in \
+            account_statement_base \
+            account_statement_import_base \
+            account_statement_import_file
+          do
+            pip install --no-deps "/tmp/others_addons/${addon}"
+          done
+          oca_install_addons
       - name: Check licenses
         run: manifestoo -d . check-licenses
       - name: Check development status
