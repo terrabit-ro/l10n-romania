@@ -19,7 +19,7 @@ class TestImport(TestMT940BankStatementImport):
         ron_curr = self.env.ref("base.RON")
         ron_curr.write({"active": True})
         self.bank = self.create_partner_bank("RO19INGB0000999904621843")
-        self.bank.bank_id.bic = "INGBROBU"
+        self.bank.bank_bic = "INGBROBU"
         self.journal = self.create_journal("TBNK2MT940", self.bank, ron_curr)
 
         self.data = """035~20AMT RCD RON 1000,00        ~21                           ~
@@ -161,7 +161,7 @@ class TestImport(TestMT940BankStatementImport):
         )
         datafile = open(testfile, "rb").read()
         # Create a wizard without the bank account in company bank_ids
-        self.bank.unlink()
+        self.bank.sudo().action_archive()
         wizard = self.env["account.statement.import"].with_context(mt940_ro_ing=True)
         res = wizard._parse_file(datafile)
         self.assertEqual(res[1], "RO19INGB0000999904621843")
