@@ -200,6 +200,75 @@ class TestReportPoSOrder(CommonPosTest):
         )
         self.assertGreater(res["total_stock_amount"], 0.0)
 
+    def _seed_product_a_stock(self, qty=10.0):
+        warehouse = self.company_data["default_warehouse"]
+        receipt = self.env["stock.move"].create(
+            {
+                "product_id": self.product_a.id,
+                "product_uom": self.product_a.uom_id.id,
+                "product_uom_qty": qty,
+                "location_id": self.env.ref("stock.stock_location_suppliers").id,
+                "location_dest_id": warehouse.lot_stock_id.id,
+                "price_unit": 60.0,
+            }
+        )
+        receipt._action_confirm()
+        receipt._action_assign()
+        receipt.move_line_ids.quantity = qty
+        receipt.picked = True
+        receipt._action_done()
+
+    def test_sale_details_default_date_start(self):
+        """date_stop fara date_start: intervalul implicit nu mai amesteca
+        datetime cu fus orar si fara fus (TypeError la comparatie)."""
+        report = self.env["report.point_of_sale.report_saledetails"].with_context(
+            tz="Europe/Bucharest"
+        )
+        # date_stop in trecut (< date_start implicit = azi) si in viitor
+        for date_stop in ("2000-01-01 23:59:59", "2999-12-31 23:59:59"):
+            res = report.get_sale_details(date_stop=date_stop)
+            self.assertIn("total_stock_amount", res)
+
+    def test_sale_details_refund_stock_columns(self):
+        """Coloanele de stoc apar si pe randurile din sectiunea Refunds."""
+        arch = self.env.ref("point_of_sale.pos_session_sales_details")
+        arch = arch._get_combined_arch()
+        refund_lines = arch.xpath(
+            "//div[@id='refunds']//tr[@t-as='line']"
+            "//span[@t-out=\"line.get('stock_amount', 0.0)\"]"
+        )
+        self.assertEqual(len(refund_lines), 1)
+        refund_categories = arch.xpath("//div[@id='refunds']//tr[@t-as='category']/td")
+        sale_categories = arch.xpath("//div[@id='sales']//tr[@t-as='category']/td")
+        self.assertEqual(len(refund_categories), len(sale_categories))
+
+        self._seed_product_a_stock()
+        order, refund = self.create_backend_pos_order(
+            {
+                "line_data": [{"product_id": self.product_a.id, "qty": 2}],
+                "payment_data": [{"payment_method_id": self.cash_payment_method.id}],
+                "refund_data": [{"payment_method_id": self.cash_payment_method.id}],
+            }
+        )
+        session = order.session_id
+        report = self.env["report.point_of_sale.report_saledetails"]
+        res = report.get_sale_details(session_ids=session.ids)
+        refund_line = next(
+            line
+            for category in res["refund_products"]
+            for line in category["products"]
+            if line["product_id"] == self.product_a.id
+        )
+        self.assertGreater(refund_line["stock_price"], 0.0)
+
+        html = (
+            self.env["ir.actions.report"]
+            ._render_qweb_html("point_of_sale.sale_details_report", session.ids)[0]
+            .decode()
+        )
+        refunds_html = html.split('id="refunds"', 1)[1]
+        self.assertIn(f"{abs(refund_line['stock_amount']):.2f}", refunds_html)
+
     def test_session_accumulate_amounts(self):
         """Test that the amounts are accumulated correctly in the session."""
         self.pos_config_usd.open_ui()

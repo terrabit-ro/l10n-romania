@@ -2,12 +2,7 @@
 #              Dorin Hongu <dhongu(@)gmail(.)com
 # See README.rst file on addons root folder for license details
 
-
-from datetime import timedelta
-
-import pytz
-
-from odoo import api, fields, models
+from odoo import api, models
 
 
 class ReportSaleDetails(models.AbstractModel):
@@ -26,42 +21,12 @@ class ReportSaleDetails(models.AbstractModel):
             date_start, date_stop, config_ids, session_ids, **kwargs
         )
 
-        # Acelasi domeniu de comenzi ca raportul standard, ca sa calculam costul marfii.
-        # Conditii in AND implicit (liste concatenate); evitam osv.expression.AND,
-        # deprecat din 19.0 in favoarea odoo.fields.Domain.
-        domain = [("state", "in", ["paid", "invoiced", "done"])]
-
-        if session_ids:
-            domain += [("session_id", "in", session_ids)]
-        else:
-            if date_start:
-                date_start = fields.Datetime.from_string(date_start)
-            else:
-                # implicit: azi 00:00:00 in fusul orar al utilizatorului
-                user_tz = pytz.timezone(
-                    self.env.context.get("tz") or self.env.user.tz or "UTC"
-                )
-                today = user_tz.localize(
-                    fields.Datetime.from_string(fields.Date.context_today(self))
-                )
-                date_start = today.astimezone(pytz.timezone("UTC"))
-
-            if date_stop:
-                date_stop = fields.Datetime.from_string(date_stop)
-                # evitam un date_stop mai mic decat date_start
-                if date_stop < date_start:
-                    date_stop = date_start + timedelta(days=1, seconds=-1)
-            else:
-                # implicit: azi 23:59:59
-                date_stop = date_start + timedelta(days=1, seconds=-1)
-
-            domain += [
-                ("date_order", ">=", fields.Datetime.to_string(date_start)),
-                ("date_order", "<=", fields.Datetime.to_string(date_stop)),
-            ]
-
-            if config_ids:
-                domain += [("config_id", "in", config_ids)]
+        # Acelasi domeniu de comenzi ca raportul standard: _get_domain din core
+        # calculeaza intervalul implicit (date_start/date_stop naive, in UTC),
+        # deci nu mai comparam un date_start cu fus orar cu un date_stop fara fus.
+        domain = self._get_domain(
+            date_start, date_stop, config_ids, session_ids, **kwargs
+        )
 
         # Valoarea de stoc are sens doar cu valorizarea (stock_account) instalata;
         # campul `value` pe stock.move vine de acolo. Daca lipseste, raportul ramane
