@@ -211,6 +211,46 @@ class TestReportPoSOrder(CommonPosStockTest):
         )
         self.assertGreater(res["total_stock_amount"], 0.0)
 
+    def test_sale_details_refund_stock_columns(self):
+        """Coloanele de stoc apar si pe randurile din sectiunea Refunds."""
+        arch = self.env.ref("point_of_sale.pos_session_sales_details")
+        arch = arch._get_combined_arch()
+        refund_lines = arch.xpath(
+            "//div[@id='refunds']//tr[@t-as='line']"
+            "//span[@t-out=\"line.get('stock_amount', 0.0)\"]"
+        )
+        self.assertEqual(len(refund_lines), 1)
+        refund_categories = arch.xpath("//div[@id='refunds']//tr[@t-as='category']/td")
+        sale_categories = arch.xpath("//div[@id='sales']//tr[@t-as='category']/td")
+        self.assertEqual(len(refund_categories), len(sale_categories))
+
+        self._seed_stock()
+        order, refund = self.create_backend_pos_order(
+            {
+                "line_data": [{"product_id": self.product_a.id, "qty": 2}],
+                "payment_data": [{"payment_method_id": self.cash_payment_method.id}],
+                "refund_data": [{"payment_method_id": self.cash_payment_method.id}],
+            }
+        )
+        session = order.session_id
+        report = self.env["report.point_of_sale.report_saledetails"]
+        res = report.get_sale_details(session_ids=session.ids)
+        refund_line = next(
+            line
+            for category in res["refund_products"]
+            for line in category["products"]
+            if line["product_id"] == self.product_a.id
+        )
+        self.assertGreater(refund_line["stock_price"], 0.0)
+
+        html = (
+            self.env["ir.actions.report"]
+            ._render_qweb_html("point_of_sale.sale_details_report", session.ids)[0]
+            .decode()
+        )
+        refunds_html = html.split('id="refunds"', 1)[1]
+        self.assertIn(f"{abs(refund_line['stock_amount']):.2f}", refunds_html)
+
     def test_session_closing_without_stock_lines(self):
         """Nota de inchidere a sesiunii nu contine linii de stoc (cheltuiala /
         valorizare) cand compania are l10n_ro_accounting: acestea sunt generate

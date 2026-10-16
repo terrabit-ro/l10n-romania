@@ -46,6 +46,15 @@ Afisare mesaje de avertizare pentru vanzare cu numerar mai mare de 5000.
 .. contents::
    :local:
 
+Changelog
+=========
+
+20.0.1.9.1
+----------
+
+- Fix: the stock cost columns of the Sales Details report are shown on
+  the Refunds rows too, not only on the Sales rows.
+
 Bug Tracker
 ===========
 
