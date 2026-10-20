@@ -8,6 +8,7 @@ from datetime import datetime
 import pytz
 
 from odoo import fields, models
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -20,6 +21,12 @@ class ResCompany(models.Model):
     )
     l10n_ro_refresh_message_days = fields.Integer(
         string="Maximum number of days to refresh e-invoice messages.", default=60
+    )
+    l10n_ro_spv_last_sync = fields.Datetime(
+        string="Last SPV message sync", readonly=True, copy=False
+    )
+    l10n_ro_spv_last_sync_error = fields.Text(
+        string="Last SPV message sync error", readonly=True, copy=False
     )
 
     def l10n_ro_download_zip_message_spv(self, limit=5):
@@ -136,7 +143,41 @@ class ResCompany(models.Model):
             partner.write({"vat": cif_clean})
         return partner
 
-    def _l10n_ro_download_message_spv(self, no_days=0):
+    def _l10n_ro_download_message_spv(self, no_days=0, raise_error=False):
+        # Fiecare companie rulează într-un savepoint: o eroare la una (token
+        # expirat, limită ANAF) nu oprește celelalte și nu lasă în urmă
+        # ștergeri sau creări parțiale. Eroarea rămâne pe companie, ca să fie
+        # vizibilă în setări. Din butonul manual (raise_error=True) eroarea
+        # ajunge la utilizator.
+        for company in self:
+            try:
+                with self.env.cr.savepoint():
+                    company._l10n_ro_download_company_message_spv(no_days)
+            except Exception as e:
+                if raise_error:
+                    raise
+                if isinstance(e, UserError):
+                    _logger.warning(
+                        "SPV message sync failed for company %s: %s",
+                        company.id,
+                        e,
+                    )
+                else:
+                    _logger.exception(
+                        "SPV message sync failed for company %s", company.id
+                    )
+                company.sudo().write({"l10n_ro_spv_last_sync_error": str(e)})
+            else:
+                company.sudo().write(
+                    {
+                        "l10n_ro_spv_last_sync": fields.Datetime.now(),
+                        "l10n_ro_spv_last_sync_error": False,
+                    }
+                )
+        return True
+
+    def _l10n_ro_download_company_message_spv(self, no_days=0):
+        self.ensure_one()
         pattern_in = r"cif_emitent=(\d+)"
         pattern_out = r"cif_beneficiar=(\d+)"
 

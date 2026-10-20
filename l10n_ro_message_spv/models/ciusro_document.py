@@ -10,6 +10,7 @@ from dateutil.relativedelta import relativedelta
 from lxml import etree
 
 from odoo import api, models
+from odoo.exceptions import UserError
 
 from odoo.addons.l10n_ro_edi.models.utils import NS_HEADER
 
@@ -179,27 +180,52 @@ class L10nRoEdiDocument(models.Model):
             params=params,
         )
 
-        if "error" not in result:
-            content = result["content"]
-            doc = json.loads(content.decode("utf-8"))
-            if doc.get("status", False) == "401":
-                _logger.error("401 Unauthorized")
-                return False
-            company_messages = list(
-                filter(
-                    lambda m: m.get("cif") == cif,
-                    doc.get("mesaje") or [],
+        # Orice răspuns care nu este o listă de mesaje ridică UserError, ca
+        # apelantul să nu confunde o eroare (token expirat, limită ANAF) cu
+        # „nu există mesaje noi".
+        if "error" in result:
+            raise UserError(
+                self.env._(
+                    "The SPV message list could not be downloaded: %(error)s",
+                    error=result["error"],
                 )
             )
-            others_messages = list(
-                filter(
-                    lambda m: m.get("cif") != cif,
-                    doc.get("mesaje") or [],
+        try:
+            doc = json.loads(result["content"].decode("utf-8"))
+        except ValueError as e:
+            raise UserError(
+                self.env._("The SPV message list could not be parsed.")
+            ) from e
+        if doc.get("status", False) in ("401", 401):
+            raise UserError(
+                self.env._(
+                    "The SPV message list could not be downloaded: %(error)s",
+                    error=self.env._("Access token is unauthorized."),
                 )
             )
-            _logger.info(f"Other messages: {others_messages}")
-            messages += company_messages
-            numar_total_pagini = doc.get("numar_total_pagini", 0)
+        eroare = doc.get("eroare")
+        if eroare and not eroare.startswith("Nu exista mesaje"):
+            raise UserError(
+                self.env._(
+                    "The SPV message list could not be downloaded: %(error)s",
+                    error=eroare,
+                )
+            )
+        company_messages = list(
+            filter(
+                lambda m: m.get("cif") == cif,
+                doc.get("mesaje") or [],
+            )
+        )
+        others_messages = list(
+            filter(
+                lambda m: m.get("cif") != cif,
+                doc.get("mesaje") or [],
+            )
+        )
+        _logger.info(f"Other messages: {others_messages}")
+        messages += company_messages
+        numar_total_pagini = doc.get("numar_total_pagini", 0)
 
         if page < numar_total_pagini:
             messages += self._request_ciusro_download_messages_spv(

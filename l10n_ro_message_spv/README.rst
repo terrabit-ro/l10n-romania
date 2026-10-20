@@ -223,6 +223,23 @@ Configuration
 Changelog
 =========
 
+**19.0.2.14.0 (2026-10-20)**
+
+- The SPV message list download no longer fails silently. When ANAF
+  answered with HTTP 200 and ``status: 401`` in the body (expired
+  token), the listing returned ``False`` and the daily cron crashed with
+  a ``TypeError``, stopping the download for all companies. Any other
+  error (HTTP 401/403/500, request limit, an ``eroare`` from ANAF) was
+  treated as an empty list, with nothing logged. Now every such response
+  is reported as an error; only ANAF's "Nu exista mesaje" answer means
+  an empty list.
+- Each company is synchronized in its own savepoint: an error at one
+  company does not stop the others and leaves nothing half-done behind
+  (the old error messages are no longer deleted when the listing fails).
+- The company keeps the time of the last successful synchronization and
+  the last error, shown in the e-Factura settings. The manual refresh
+  button shows the error to the user.
+
 **19.0.2.11.0 (2026-08-19)**
 
 - The partner lookup by tax ID now accepts both spellings of the
