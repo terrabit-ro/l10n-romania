@@ -519,3 +519,27 @@ msgstr "ZIP"
 
 #~ msgid "Render PDF"
 #~ msgstr "Generează PDF"
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_last_sync
+msgid "Last SPV message sync"
+msgstr "Ultima sincronizare a mesajelor SPV"
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync_error
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_last_sync_error
+msgid "Last SPV message sync error"
+msgstr "Eroarea ultimei sincronizări a mesajelor SPV"
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
+msgid "The SPV message list could not be downloaded: %(error)s"
+msgstr "Lista mesajelor SPV nu a putut fi descărcată: %(error)s"
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
+msgid "The SPV message list could not be parsed."
+msgstr "Lista mesajelor SPV nu a putut fi interpretată."

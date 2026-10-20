@@ -26,6 +26,17 @@
                     />
                     <field name="l10n_ro_refresh_message_days" />
                 </div>
+                <div class="row">
+                    <label for="l10n_ro_spv_last_sync" class="col-lg-3 o_light_label" />
+                    <field name="l10n_ro_spv_last_sync" />
+                </div>
+                <div class="row" invisible="not l10n_ro_spv_last_sync_error">
+                    <label
+                        for="l10n_ro_spv_last_sync_error"
+                        class="col-lg-3 o_light_label"
+                    />
+                    <field name="l10n_ro_spv_last_sync_error" class="text-danger" />
+                </div>
             </xpath>
         </field>
     </record>
