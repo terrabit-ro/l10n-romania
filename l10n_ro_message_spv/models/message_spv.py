@@ -762,7 +762,7 @@ class MessageSPV(models.Model):
             self.env.company.l10n_ro_refresh_message_days or 1
         )
         self.env.company._l10n_ro_download_message_spv(
-            no_days=l10n_ro_refresh_message_days
+            no_days=l10n_ro_refresh_message_days, raise_error=True
         )
 
     def show_invoice(self):

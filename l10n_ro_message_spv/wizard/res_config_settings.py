@@ -12,3 +12,6 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.l10n_ro_refresh_message_days",
         readonly=False,
     )
+    l10n_ro_spv_last_sync = fields.Datetime(
+        related="company_id.l10n_ro_spv_last_sync",
+    )
