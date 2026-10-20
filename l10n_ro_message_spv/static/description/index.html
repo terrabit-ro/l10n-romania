@@ -599,6 +599,27 @@ XML-ul a fost validat de sistemul ANAF.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>20.0.2.15.0 (2026-10-20)</strong></p>
+<ul class="simple">
+<li>The last synchronization error is no longer shown in the e-Factura
+settings, where nobody looks every day. A new synchronization error is
+sent as a notification (in Discuss or by email, according to each
+user’s notification preference) to the company’s accounting managers
+and settings administrators, who can regenerate the ANAF token. The
+same error is not sent again on every run, only when it changes. The
+settings keep only the time of the last successful synchronization.
+The manual refresh button shows the error to the user.</li>
+<li>The notification is not linked to a record. In Odoo 20, Discuss lists
+notifications and a click opens their record; the company partner does
+not show such a message, so the click would open an empty form.
+Without a record, the click opens the full message in a dialog.</li>
+<li>SPV message views: the <tt class="docutils literal">Currency</tt> and <tt class="docutils literal">Invoice Amount</tt> columns are
+no longer shown empty in the list, the <tt class="docutils literal">Error</tt> state has a red
+badge, the empty <tt class="docutils literal">Errors and Info</tt> group is hidden, and the form has
+no <tt class="docutils literal">New</tt> button (messages come only from ANAF).</li>
+<li>The strings added in 20.0.2.14.0 are now in the <tt class="docutils literal">.pot</tt> file as well;
+without them the Romanian translations were dropped at load time.</li>
+</ul>
 <p><strong>20.0.2.14.0 (2026-10-20)</strong></p>
 <ul class="simple">
 <li>The SPV message list download no longer fails silently. When ANAF

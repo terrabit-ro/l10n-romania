@@ -1646,3 +1646,47 @@ class TestMessageSPV(TestMessageSPV):
                 [("name", "=", "3006379901"), ("company_id", "=", company_ok.id)]
             )
         )
+
+    def test_download_messages_error_notifies_managers_once(self):
+        """O eroare nouă de sincronizare ajunge în Inbox la contabilii-șefi ai
+        companiei; aceeași eroare nu se renotifică la rularea următoare."""
+        company = self.env.company
+        company.l10n_ro_spv_last_sync_error = False
+        manager = self.env["res.users"].create(
+            {
+                "name": "Contabil Șef SPV",
+                "login": "spv_manager",
+                "company_id": company.id,
+                "company_ids": [(6, 0, company.ids)],
+                "group_ids": [(4, self.env.ref("account.group_account_manager").id)],
+            }
+        )
+
+        def notifications():
+            return self.env["mail.message"].search(
+                [
+                    ("message_type", "=", "user_notification"),
+                    # fără înregistrare legată: în Discuss se deschide în dialog
+                    ("model", "=", False),
+                    ("subject", "ilike", company.name),
+                    ("partner_ids", "in", manager.partner_id.id),
+                ]
+            )
+
+        for error in ("Access token is unauthorized.", "Access token is forbidden."):
+            for _run in range(2):
+                with (
+                    patch(
+                        "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+                        return_value={"error": error},
+                    ),
+                    self.assertLogs(
+                        "odoo.addons.l10n_ro_message_spv.models.res_company",
+                        level="WARNING",
+                    ),
+                ):
+                    company._l10n_ro_download_message_spv()
+        # o notificare pe eroare distinctă, nu una pe rulare
+        sent = notifications()
+        self.assertEqual(len(sent), 2)
+        self.assertNotEqual(sent[0].body, sent[1].body)
