@@ -236,9 +236,17 @@ Changelog
 - Each company is synchronized in its own savepoint: an error at one
   company does not stop the others and leaves nothing half-done behind
   (the old error messages are no longer deleted when the listing fails).
-- The company keeps the time of the last successful synchronization and
-  the last error, shown in the e-Factura settings. The manual refresh
+- A new synchronization error is sent as a notification (in Discuss or
+  by email, according to each user's notification preference) to the
+  company's accounting managers and settings administrators, who can
+  regenerate the ANAF token. The same error is not sent again on every
+  run, only when it changes. The time of the last successful
+  synchronization is shown in the e-Factura settings. The manual refresh
   button shows the error to the user.
+- SPV message views: the ``Currency`` and ``Invoice Amount`` columns are
+  no longer shown empty in the list, the ``Error`` state has a red
+  badge, the empty ``Errors and Info`` group is hidden, and the form has
+  no ``New`` button (messages come only from ANAF).
 
 **19.0.2.11.0 (2026-08-19)**
 

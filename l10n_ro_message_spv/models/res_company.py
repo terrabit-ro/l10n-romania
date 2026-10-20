@@ -146,10 +146,13 @@ class ResCompany(models.Model):
     def _l10n_ro_download_message_spv(self, no_days=0, raise_error=False):
         # Fiecare companie rulează într-un savepoint: o eroare la una (token
         # expirat, limită ANAF) nu oprește celelalte și nu lasă în urmă
-        # ștergeri sau creări parțiale. Eroarea rămâne pe companie, ca să fie
-        # vizibilă în setări. Din butonul manual (raise_error=True) eroarea
-        # ajunge la utilizator.
+        # ștergeri sau creări parțiale. O eroare nouă ajunge ca notificare la
+        # contabilii-șefi și administratorii companiei; aceeași eroare nu se
+        # renotifică la fiecare rulare. Din butonul manual (raise_error=True) eroarea
+        # ajunge direct la utilizator.
         for company in self:
+            if not raise_error and company.partner_id.lang:
+                company = company.with_context(lang=company.partner_id.lang)
             try:
                 with self.env.cr.savepoint():
                     company._l10n_ro_download_company_message_spv(no_days)
@@ -166,7 +169,10 @@ class ResCompany(models.Model):
                     _logger.exception(
                         "SPV message sync failed for company %s", company.id
                     )
-                company.sudo().write({"l10n_ro_spv_last_sync_error": str(e)})
+                error = str(e)
+                if company.l10n_ro_spv_last_sync_error != error:
+                    company._l10n_ro_notify_spv_sync_error(error)
+                company.sudo().write({"l10n_ro_spv_last_sync_error": error})
             else:
                 company.sudo().write(
                     {
@@ -175,6 +181,40 @@ class ResCompany(models.Model):
                     }
                 )
         return True
+
+    def _l10n_ro_notify_spv_sync_error(self, error):
+        """Trimite eroarea de sincronizare SPV (în Discuss sau pe email, după
+        preferința fiecăruia) contabililor-șefi ai companiei și administratorilor
+        de setări, care pot regenera tokenul ANAF."""
+        self.ensure_one()
+        groups = self.env.ref("account.group_account_manager") | self.env.ref(
+            "base.group_system"
+        )
+        users = (
+            self.env["res.users"]
+            .sudo()
+            .search(
+                [
+                    ("group_ids", "in", groups.ids),
+                    ("company_ids", "in", self.id),
+                    ("share", "=", False),
+                ]
+            )
+        )
+        if not users:
+            return
+        self.partner_id.sudo().message_notify(
+            partner_ids=users.partner_id.ids,
+            subject=self.env._(
+                "SPV message sync failed: %(company)s", company=self.name
+            ),
+            body=self.env._(
+                "%(error)s Messages older than 60 days can no longer be listed"
+                " from ANAF, so check the ANAF token in the e-Factura settings.",
+                error=error,
+            ),
+            author_id=self.env.ref("base.partner_root").id,
+        )
 
     def _l10n_ro_download_company_message_spv(self, no_days=0):
         self.ensure_one()
