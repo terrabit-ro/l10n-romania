@@ -1526,3 +1526,109 @@ class TestMessageSPV(TestMessageSPV):
         message_spv.create_invoice()
         self.assertTrue(message_spv.invoice_id)
         self.assertEqual(message_spv.invoice_id.company_id, self.env.company)
+
+    def _spv_list_response(self, cif, message_id):
+        return {
+            "content": json.dumps(
+                {
+                    "mesaje": [
+                        {
+                            "data_creare": "202312120940",
+                            "cif": cif,
+                            "id_solicitare": f"5{message_id}",
+                            "detalii": f"Factura cu id_incarcare=5{message_id} emisa de cif_emitent=8486152 pentru cif_beneficiar={cif}",  # noqa
+                            "tip": "FACTURA PRIMITA",
+                            "id": message_id,
+                        }
+                    ],
+                    "numar_total_pagini": 1,
+                }
+            ).encode("utf-8")
+        }
+
+    def test_download_messages_unauthorized_body(self):
+        """ANAF poate răspunde HTTP 200 cu status 401 în corp: sincronizarea
+        nu mai cade cu TypeError, eroarea rămâne pe companie."""
+        company = self.env.company
+        company.l10n_ro_spv_last_sync_error = False
+        with patch(
+            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+            return_value={"content": b'{"status": "401"}'},
+        ):
+            company._l10n_ro_download_message_spv()
+        self.assertIn("unauthorized", company.l10n_ro_spv_last_sync_error)
+
+    def test_download_messages_error_kept_and_raised_manually(self):
+        """O eroare la listare nu șterge mesajele de eroare existente; din
+        butonul manual eroarea ajunge la utilizator."""
+        company = self.env.company
+        old_error = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "OLD_ERR",
+                "company_id": company.id,
+                "message_type": "error",
+            }
+        )
+        with patch(
+            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+            return_value={"error": "Access token is unauthorized."},
+        ):
+            company._l10n_ro_download_message_spv()
+            self.assertTrue(old_error.exists())
+            self.assertIn("unauthorized", company.l10n_ro_spv_last_sync_error)
+            with self.assertRaises(UserError):
+                old_error.refresh()
+
+    def test_download_messages_anaf_error_body(self):
+        """O eroare ANAF în corp („eroare") e semnalată, dar „Nu exista
+        mesaje" este doar o listă goală."""
+        company = self.env.company
+        with patch(
+            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+            return_value={
+                "content": b'{"eroare": "Nu aveti drept de interogare pentru CIF=1"}'
+            },
+        ):
+            company._l10n_ro_download_message_spv()
+        self.assertIn("Nu aveti drept", company.l10n_ro_spv_last_sync_error)
+
+        with patch(
+            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+            return_value={
+                "content": b'{"eroare": "Nu exista mesaje in ultimele 60 zile"}'
+            },
+        ):
+            company._l10n_ro_download_message_spv()
+        self.assertFalse(company.l10n_ro_spv_last_sync_error)
+        self.assertTrue(company.l10n_ro_spv_last_sync)
+
+    def test_download_messages_other_company_continues(self):
+        """Eroarea la o companie nu oprește sincronizarea celorlalte."""
+        company_ok = self.env["res.company"].create(
+            {
+                "name": "SPV second company",
+                "vat": "RO23685159",
+                "country_id": self.env.ref("base.ro").id,
+                "l10n_ro_edi_access_token": "456",
+            }
+        )
+        companies = self.env.company | company_ok
+
+        def fake_request(session, company, endpoint, params, data=None):
+            if company == company_ok:
+                return self._spv_list_response("23685159", "3006379901")
+            return {"error": "Access token is unauthorized."}
+
+        with patch(
+            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+            side_effect=fake_request,
+        ):
+            companies._l10n_ro_download_message_spv()
+
+        self.assertTrue(self.env.company.l10n_ro_spv_last_sync_error)
+        self.assertFalse(company_ok.l10n_ro_spv_last_sync_error)
+        self.assertTrue(
+            self.env["l10n.ro.message.spv"].search(
+                [("name", "=", "3006379901"), ("company_id", "=", company_ok.id)]
+            )
+        )
