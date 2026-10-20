@@ -223,6 +223,27 @@ Configuration
 Changelog
 =========
 
+**20.0.2.15.0 (2026-10-20)**
+
+- The last synchronization error is no longer shown in the e-Factura
+  settings, where nobody looks every day. A new synchronization error is
+  sent as a notification (in Discuss or by email, according to each
+  user's notification preference) to the company's accounting managers
+  and settings administrators, who can regenerate the ANAF token. The
+  same error is not sent again on every run, only when it changes. The
+  settings keep only the time of the last successful synchronization.
+  The manual refresh button shows the error to the user.
+- The notification is not linked to a record. In Odoo 20, Discuss lists
+  notifications and a click opens their record; the company partner does
+  not show such a message, so the click would open an empty form.
+  Without a record, the click opens the full message in a dialog.
+- SPV message views: the ``Currency`` and ``Invoice Amount`` columns are
+  no longer shown empty in the list, the ``Error`` state has a red
+  badge, the empty ``Errors and Info`` group is hidden, and the form has
+  no ``New`` button (messages come only from ANAF).
+- The strings added in 20.0.2.14.0 are now in the ``.pot`` file as well;
+  without them the Romanian translations were dropped at load time.
+
 **20.0.2.14.0 (2026-10-20)**
 
 - The SPV message list download no longer fails silently. When ANAF

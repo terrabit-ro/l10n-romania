@@ -15,6 +15,3 @@ class ResConfigSettings(models.TransientModel):
     l10n_ro_spv_last_sync = fields.Datetime(
         related="company_id.l10n_ro_spv_last_sync",
     )
-    l10n_ro_spv_last_sync_error = fields.Text(
-        related="company_id.l10n_ro_spv_last_sync_error",
-    )
