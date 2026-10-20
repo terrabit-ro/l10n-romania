@@ -1523,9 +1523,14 @@ class TestMessageSPV(TestMessageSPV):
         nu mai cade cu TypeError, eroarea rămâne pe companie."""
         company = self.env.company
         company.l10n_ro_spv_last_sync_error = False
-        with patch(
-            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
-            return_value={"content": b'{"status": "401"}'},
+        with (
+            patch(
+                "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+                return_value={"content": b'{"status": "401"}'},
+            ),
+            self.assertLogs(
+                "odoo.addons.l10n_ro_message_spv.models.res_company", level="WARNING"
+            ),
         ):
             company._l10n_ro_download_message_spv()
         self.assertIn("unauthorized", company.l10n_ro_spv_last_sync_error)
@@ -1545,7 +1550,10 @@ class TestMessageSPV(TestMessageSPV):
             "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
             return_value={"error": "Access token is unauthorized."},
         ):
-            company._l10n_ro_download_message_spv()
+            with self.assertLogs(
+                "odoo.addons.l10n_ro_message_spv.models.res_company", level="WARNING"
+            ):
+                company._l10n_ro_download_message_spv()
             self.assertTrue(old_error.exists())
             self.assertIn("unauthorized", company.l10n_ro_spv_last_sync_error)
             with self.assertRaises(UserError):
@@ -1555,11 +1563,16 @@ class TestMessageSPV(TestMessageSPV):
         """O eroare ANAF în corp („eroare") e semnalată, dar „Nu exista
         mesaje" este doar o listă goală."""
         company = self.env.company
-        with patch(
-            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
-            return_value={
-                "content": b'{"eroare": "Nu aveti drept de interogare pentru CIF=1"}'
-            },
+        with (
+            patch(
+                "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+                return_value={
+                    "content": b'{"eroare": "Nu aveti drept de interogare CIF=1"}'
+                },
+            ),
+            self.assertLogs(
+                "odoo.addons.l10n_ro_message_spv.models.res_company", level="WARNING"
+            ),
         ):
             company._l10n_ro_download_message_spv()
         self.assertIn("Nu aveti drept", company.l10n_ro_spv_last_sync_error)
@@ -1591,9 +1604,14 @@ class TestMessageSPV(TestMessageSPV):
                 return self._spv_list_response("23685159", "3006379901")
             return {"error": "Access token is unauthorized."}
 
-        with patch(
-            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
-            side_effect=fake_request,
+        with (
+            patch(
+                "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+                side_effect=fake_request,
+            ),
+            self.assertLogs(
+                "odoo.addons.l10n_ro_message_spv.models.res_company", level="WARNING"
+            ),
         ):
             companies._l10n_ro_download_message_spv()
 
