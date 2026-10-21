@@ -8,6 +8,7 @@ from datetime import datetime
 import pytz
 
 from odoo import fields, models
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -20,6 +21,12 @@ class ResCompany(models.Model):
     )
     l10n_ro_refresh_message_days = fields.Integer(
         string="Maximum number of days to refresh e-invoice messages.", default=60
+    )
+    l10n_ro_spv_last_sync = fields.Datetime(
+        string="Last SPV message sync", readonly=True, copy=False
+    )
+    l10n_ro_spv_last_sync_error = fields.Text(
+        string="Last SPV message sync error", readonly=True, copy=False
     )
 
     def l10n_ro_download_zip_message_spv(self, limit=5):
@@ -136,7 +143,81 @@ class ResCompany(models.Model):
             partner.write({"vat": cif_clean})
         return partner
 
-    def _l10n_ro_download_message_spv(self, no_days=0):
+    def _l10n_ro_download_message_spv(self, no_days=0, raise_error=False):
+        # Fiecare companie rulează într-un savepoint: o eroare la una (token
+        # expirat, limită ANAF) nu oprește celelalte și nu lasă în urmă
+        # ștergeri sau creări parțiale. O eroare nouă ajunge ca notificare la
+        # contabilii-șefi și administratorii companiei; aceeași eroare nu se
+        # renotifică la fiecare rulare. Din butonul manual (raise_error=True) eroarea
+        # ajunge direct la utilizator.
+        for company in self:
+            if not raise_error and company.partner_id.lang:
+                company = company.with_context(lang=company.partner_id.lang)
+            try:
+                with self.env.cr.savepoint():
+                    company._l10n_ro_download_company_message_spv(no_days)
+            except Exception as e:
+                if raise_error:
+                    raise
+                if isinstance(e, UserError):
+                    _logger.warning(
+                        "SPV message sync failed for company %s: %s",
+                        company.id,
+                        e,
+                    )
+                else:
+                    _logger.exception(
+                        "SPV message sync failed for company %s", company.id
+                    )
+                error = str(e)
+                if company.l10n_ro_spv_last_sync_error != error:
+                    company._l10n_ro_notify_spv_sync_error(error)
+                company.sudo().write({"l10n_ro_spv_last_sync_error": error})
+            else:
+                company.sudo().write(
+                    {
+                        "l10n_ro_spv_last_sync": fields.Datetime.now(),
+                        "l10n_ro_spv_last_sync_error": False,
+                    }
+                )
+        return True
+
+    def _l10n_ro_notify_spv_sync_error(self, error):
+        """Trimite eroarea de sincronizare SPV (în Discuss sau pe email, după
+        preferința fiecăruia) contabililor-șefi ai companiei și administratorilor
+        de setări, care pot regenera tokenul ANAF."""
+        self.ensure_one()
+        groups = self.env.ref("account.group_account_manager") | self.env.ref(
+            "base.group_system"
+        )
+        users = (
+            self.env["res.users"]
+            .sudo()
+            .search(
+                [
+                    ("group_ids", "in", groups.ids),
+                    ("company_ids", "in", self.id),
+                    ("share", "=", False),
+                ]
+            )
+        )
+        if not users:
+            return
+        self.partner_id.sudo().message_notify(
+            partner_ids=users.partner_id.ids,
+            subject=self.env._(
+                "SPV message sync failed: %(company)s", company=self.name
+            ),
+            body=self.env._(
+                "%(error)s Messages older than 60 days can no longer be listed"
+                " from ANAF, so check the ANAF token in the e-Factura settings.",
+                error=error,
+            ),
+            author_id=self.env.ref("base.partner_root").id,
+        )
+
+    def _l10n_ro_download_company_message_spv(self, no_days=0):
+        self.ensure_one()
         pattern_in = r"cif_emitent=(\d+)"
         pattern_out = r"cif_beneficiar=(\d+)"
 

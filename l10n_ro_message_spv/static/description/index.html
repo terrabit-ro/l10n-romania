@@ -599,6 +599,31 @@ XML-ul a fost validat de sistemul ANAF.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>19.0.2.14.0 (2026-10-20)</strong></p>
+<ul class="simple">
+<li>The SPV message list download no longer fails silently. When ANAF
+answered with HTTP 200 and <tt class="docutils literal">status: 401</tt> in the body (expired
+token), the listing returned <tt class="docutils literal">False</tt> and the daily cron crashed with
+a <tt class="docutils literal">TypeError</tt>, stopping the download for all companies. Any other
+error (HTTP 401/403/500, request limit, an <tt class="docutils literal">eroare</tt> from ANAF) was
+treated as an empty list, with nothing logged. Now every such response
+is reported as an error; only ANAF’s “Nu exista mesaje” answer means
+an empty list.</li>
+<li>Each company is synchronized in its own savepoint: an error at one
+company does not stop the others and leaves nothing half-done behind
+(the old error messages are no longer deleted when the listing fails).</li>
+<li>A new synchronization error is sent as a notification (in Discuss or
+by email, according to each user’s notification preference) to the
+company’s accounting managers and settings administrators, who can
+regenerate the ANAF token. The same error is not sent again on every
+run, only when it changes. The time of the last successful
+synchronization is shown in the e-Factura settings. The manual refresh
+button shows the error to the user.</li>
+<li>SPV message views: the <tt class="docutils literal">Currency</tt> and <tt class="docutils literal">Invoice Amount</tt> columns are
+no longer shown empty in the list, the <tt class="docutils literal">Error</tt> state has a red
+badge, the empty <tt class="docutils literal">Errors and Info</tt> group is hidden, and the form has
+no <tt class="docutils literal">New</tt> button (messages come only from ANAF).</li>
+</ul>
 <p><strong>19.0.2.11.0 (2026-08-19)</strong></p>
 <ul class="simple">
 <li>The partner lookup by tax ID now accepts both spellings of the

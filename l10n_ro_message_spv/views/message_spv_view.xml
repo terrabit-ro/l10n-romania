@@ -37,13 +37,13 @@
                 <field name="partner_id" />
                 <field name="request_id" />
                 <field name="company_id" groups="base.group_multi_company" />
-                <field name="currency_id" invisible="1" />
+                <field name="currency_id" column_invisible="1" />
                 <field
                     name="amount"
                     sum="1"
                     decoration-danger="invoice_amount and amount != invoice_amount"
                 />
-                <field name="invoice_amount" invisible="1" />
+                <field name="invoice_amount" column_invisible="1" />
 
                 <field name="invoice_id" />
                 <field
@@ -52,6 +52,7 @@
                     decoration-success="state == 'done'"
                     decoration-info="state == 'downloaded'"
                     decoration-primary="state == 'invoice'"
+                    decoration-danger="state == 'error'"
                 />
             </list>
         </field>
@@ -62,7 +63,7 @@
         <field name="model">l10n.ro.message.spv</field>
         <field name="type">form</field>
         <field name="arch" type="xml">
-            <form>
+            <form create="0">
                 <header>
                     <button name="download_from_spv" string="Download" type="object" />
                     <button
@@ -140,10 +141,14 @@
                                 decoration-success="state == 'done'"
                                 decoration-info="state == 'downloaded'"
                                 decoration-primary="state == 'invoice'"
+                                decoration-danger="state == 'error'"
                             />
                         </group>
 
-                        <group string="Errors and Info">
+                        <group
+                            string="Errors and Info"
+                            invisible="not error and not message"
+                        >
                             <field name="error" invisible="not error" />
                             <field name="message" invisible="not message" />
                         </group>

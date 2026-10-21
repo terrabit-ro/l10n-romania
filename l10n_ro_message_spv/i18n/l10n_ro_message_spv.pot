@@ -497,6 +497,41 @@ msgid "You reached the limit of requests. Please try again later."
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_last_sync
+msgid "Last SPV message sync"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync_error
+msgid "Last SPV message sync error"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/res_company.py:0
+msgid "SPV message sync failed: %(company)s"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/res_company.py:0
+msgid "%(error)s Messages older than 60 days can no longer be listed from ANAF, so check the ANAF token in the e-Factura settings."
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
+msgid "The SPV message list could not be downloaded: %(error)s"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
+msgid "The SPV message list could not be parsed."
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_form
 msgid "ZIP"
 msgstr ""
