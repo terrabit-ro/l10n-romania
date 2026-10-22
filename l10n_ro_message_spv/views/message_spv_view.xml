@@ -9,19 +9,27 @@
                 <header>
                     <button
                         name="refresh"
+                        groups="account.group_account_user"
                         string="Refresh"
                         type="object"
                         icon="fa-refresh"
                         display="always"
                     />
-                    <button name="download_from_spv" string="Download" type="object" />
+                    <button
+                        name="download_from_spv"
+                        string="Download"
+                        type="object"
+                        groups="account.group_account_user"
+                    />
                     <button
                         name="get_invoice_from_move"
+                        groups="account.group_account_user"
                         string="Get Invoice"
                         type="object"
                     />
                     <button
                         name="create_invoice"
+                        groups="account.group_account_user"
                         string="Create Invoice"
                         type="object"
                     />
@@ -65,14 +73,21 @@
         <field name="arch" type="xml">
             <form create="0">
                 <header>
-                    <button name="download_from_spv" string="Download" type="object" />
+                    <button
+                        name="download_from_spv"
+                        string="Download"
+                        type="object"
+                        groups="account.group_account_user"
+                    />
                     <button
                         name="get_invoice_from_move"
+                        groups="account.group_account_user"
                         string="Get Invoice"
                         type="object"
                     />
                     <button
                         name="create_invoice"
+                        groups="account.group_account_user"
                         string="Create Invoice"
                         type="object"
                         invisible="message_type not in ('in_invoice','in_receipt')"
