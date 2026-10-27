@@ -4,10 +4,6 @@ on:
   pull_request:
     branches:
       - "20.0*"
-  push:
-    branches:
-      - "20.0"
-      - "20.0-ocabot-*"
 
 jobs:
   pre-commit:
