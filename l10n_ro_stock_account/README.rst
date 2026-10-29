@@ -200,6 +200,17 @@ Performance notes
 Changelog
 =========
 
+19.0.1.14.0
+-----------
+
+- Set the company stock transfer account (482) on databases migrated
+  from 18.0. In 18.0 a transfer through a transit location without that
+  account fell back on the valuation account of the transit location; in
+  19.0 the account is read only from the company, so validating such a
+  transfer failed with a missing debit account. The end-migration fills
+  it on every Romanian company that has none, from the transit location
+  account, else 482.
+
 19.0.1.13.0
 -----------
 
