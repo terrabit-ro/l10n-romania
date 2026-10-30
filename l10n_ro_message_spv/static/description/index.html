@@ -599,6 +599,13 @@ XML-ul a fost validat de sistemul ANAF.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>19.0.2.15.1 (2026-10-30)</strong></p>
+<ul class="simple">
+<li>Indexed the SPV message attachment. Every deleted attachment checks
+this column, and without an index each check scanned the whole message
+table: on a database with ~90,000 SPV messages, a batch deletion of
+attachments ran past odoo.sh’s 66 s statement limit.</li>
+</ul>
 <p><strong>19.0.2.15.0 (2026-10-22)</strong></p>
 <ul class="simple">
 <li>The SPV sync error notification is no longer linked to the company

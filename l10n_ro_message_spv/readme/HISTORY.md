@@ -1,3 +1,10 @@
+**19.0.2.15.1 (2026-10-30)**
+
+- Indexed the SPV message attachment. Every deleted attachment checks this
+  column, and without an index each check scanned the whole message table:
+  on a database with ~90,000 SPV messages, a batch deletion of attachments
+  ran past odoo.sh's 66 s statement limit.
+
 **19.0.2.15.0 (2026-10-22)**
 
 - The SPV sync error notification is no longer linked to the company
