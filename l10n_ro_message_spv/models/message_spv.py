@@ -66,8 +66,14 @@ class MessageSPV(models.Model):
     download_attempts = fields.Integer(default=0)
     last_download_date = fields.Date()
     file_name = fields.Char()
+    # Indexed: the column is a foreign key to ir_attachment, so every deleted
+    # attachment makes PostgreSQL look it up here; without an index that is a
+    # full scan of this (large) table per deleted row.
     attachment_id = fields.Many2one(
-        "ir.attachment", string="Attachment", check_company=True
+        "ir.attachment",
+        string="Attachment",
+        check_company=True,
+        index="btree_not_null",
     )
     # The signed ANAF ZIP (attachment_id) is the only stored file. The XML
     # and the PDFs are derived from it on demand; these fields only expose

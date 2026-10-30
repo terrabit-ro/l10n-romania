@@ -1,3 +1,10 @@
+**20.0.2.16.1 (2026-11-21)**
+
+- Indexed the SPV message attachment. Every deleted attachment checks this
+  column, and without an index each check scanned the whole message table:
+  on a database with ~90,000 SPV messages, a batch deletion of attachments
+  ran past odoo.sh's 66 s statement limit.
+
 **20.0.2.16.0 (2026-11-21)**
 
 - The Refresh, Download, Get Invoice and Create Invoice buttons are shown
