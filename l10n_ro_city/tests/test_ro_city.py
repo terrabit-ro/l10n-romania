@@ -67,3 +67,6 @@ class TestRoCity(TransactionCase):
         with self.assertRaises(UserError):
             # 030011 belongs to Bucharest sectors and requires state B.
             partner_form.zip = "030011"
+
+    def test_state_prefix_zip(self):
+        self.assertEqual(self.env.ref("base.RO_GR").l10n_ro_prefix_zip, "08")
