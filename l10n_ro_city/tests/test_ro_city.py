@@ -70,3 +70,23 @@ class TestRoCity(TransactionCase):
 
     def test_state_prefix_zip(self):
         self.assertEqual(self.env.ref("base.RO_GR").l10n_ro_prefix_zip, "08")
+
+    def test_towns_without_same_name_locality(self):
+        # These towns have no component locality of the same name
+        for xmlid, name, zipcode in [
+            ("l10n_ro_city.RO_131103", "Breaza", "105400"),
+            ("l10n_ro_city.RO_167641", "Băile Govora", "245200"),
+            ("l10n_ro_city.RO_167696", "Băile Olănești", "245300"),
+            ("l10n_ro_city.RO_168130", "Ocnele Mari", "245900"),
+            ("l10n_ro_city.RO_60455", "Eforie", "905300"),
+        ]:
+            city = self.env.ref(xmlid)
+            self.assertEqual(city.name, name)
+            self.assertEqual(city.zipcode, zipcode)
+            self.assertEqual(city.l10n_ro_municipality, name)
+
+    def test_city_names(self):
+        self.assertEqual(self.env.ref("l10n_ro_city.RO_63401").name, "Sfântu Gheorghe")
+        self.assertEqual(
+            self.env.ref("l10n_ro_city.RO_179542").name, "Popești-Leordeni"
+        )
