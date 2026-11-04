@@ -1,3 +1,17 @@
+## 19.0.1.15.0
+
+- Fix internal transfers posting on the expense account when the product
+  category does not change accounts per location
+  (`l10n_ro_stock_account_change` unset). The counterpart of an internal
+  transfer was switched to a stock account only for categories with that flag,
+  so on the others it stayed 607: with valued internal transfers (FIFO per
+  location) each one posted Dr 482 / Cr 371 and Dr 607 / Cr 482, net
+  Dr 607 / Cr 371, and the stock account drifted away from the stock
+  valuation report. The counterpart is now the stock account of the
+  destination location, else the stock valuation account, so a transfer
+  within the same stock account posts nothing. Entries already posted are not
+  changed.
+
 ## 19.0.1.14.0
 
 - Set the company stock transfer account (482) on databases migrated from
