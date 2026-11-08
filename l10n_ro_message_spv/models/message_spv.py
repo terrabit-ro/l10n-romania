@@ -557,7 +557,7 @@ class MessageSPV(models.Model):
                 message.write(
                     {
                         "state": "error",
-                        "error": "No XML found in the downloaded ZIP.",
+                        "error": self.env._("No XML found in the downloaded ZIP."),
                     }
                 )
                 continue
