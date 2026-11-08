@@ -223,6 +223,26 @@ Configuration
 Changelog
 =========
 
+**19.0.2.15.1 (2026-10-30)**
+
+- Indexed the SPV message attachment. Every deleted attachment checks
+  this column, and without an index each check scanned the whole message
+  table: on a database with ~90,000 SPV messages, a batch deletion of
+  attachments ran past odoo.sh's 66 s statement limit.
+
+**19.0.2.15.0 (2026-10-22)**
+
+- The SPV sync error notification is no longer linked to the company
+  partner: clicking it in Discuss opened that partner's form, which does
+  not show the notification. It now opens in a dialog with the full
+  text, as on 20.0.
+- The Refresh, Download, Get Invoice and Create Invoice buttons are
+  shown only to accounting users. A read-only user saw them, and Refresh
+  failed with an access error, because the synchronization deletes and
+  creates messages.
+- "No XML found in the downloaded ZIP." in the message's Error field is
+  now translated.
+
 **19.0.2.14.0 (2026-10-20)**
 
 - The SPV message list download no longer fails silently. When ANAF

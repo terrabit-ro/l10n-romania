@@ -1642,8 +1642,9 @@ class TestMessageSPV(TestMessageSPV):
             return self.env["mail.message"].search(
                 [
                     ("message_type", "=", "user_notification"),
-                    ("model", "=", "res.partner"),
-                    ("res_id", "=", company.partner_id.id),
+                    # fără înregistrare legată: în Discuss se deschide în dialog
+                    ("model", "=", False),
+                    ("subject", "ilike", company.name),
                     ("partner_ids", "in", manager.partner_id.id),
                 ]
             )
@@ -1665,3 +1666,29 @@ class TestMessageSPV(TestMessageSPV):
         sent = notifications()
         self.assertEqual(len(sent), 2)
         self.assertNotEqual(sent[0].body, sent[1].body)
+
+    def test_readonly_user_has_no_sync_buttons(self):
+        """Utilizatorul doar citire nu vede butoanele care scriu (Actualizare
+        șterge și creează mesaje); contabilul le vede."""
+        readonly = self.env["res.users"].create(
+            {
+                "name": "Contabil doar citire",
+                "login": "spv_readonly",
+                "company_id": self.env.company.id,
+                "company_ids": [(6, 0, self.env.company.ids)],
+                "group_ids": [
+                    (6, 0, [self.env.ref("account.group_account_readonly").id])
+                ],
+            }
+        )
+        message_obj = self.env["l10n.ro.message.spv"]
+        actions = ("refresh", "download_from_spv", "get_invoice_from_move")
+        for view_type in ("list", "form"):
+            arch = message_obj.with_user(readonly).get_views([(False, view_type)])[
+                "views"
+            ][view_type]["arch"]
+            for name in actions + ("create_invoice",):
+                self.assertNotIn(f'name="{name}"', arch, (view_type, name))
+        arch = message_obj.get_views([(False, "list")])["views"]["list"]["arch"]
+        for name in actions:
+            self.assertIn(f'name="{name}"', arch)

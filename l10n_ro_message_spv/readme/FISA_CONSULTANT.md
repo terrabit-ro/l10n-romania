@@ -46,7 +46,8 @@ aceea sunt date și grupurile tehnice):
 - utilizator contabil (`account.group_account_user`; în Enterprise **Bookkeeper**, în Community
   opțiunea **Afișați toate funcțiile din contabilitate**): citește, descarcă și creează facturi;
 - utilizator doar citire (`account.group_account_readonly`; în Enterprise **Read-only**): vede
-  mesajele, dar nu le poate modifica. Un utilizator doar cu drept de **Facturare**, fără funcțiile de
+  mesajele și descarcă fișierele lor, dar nu are butoanele **Actualizare**, **Descarcă**, **Găsește
+  factură** și **Creează factură**. Un utilizator doar cu drept de **Facturare**, fără funcțiile de
   contabilitate, nu are meniul **Contabilitate**, deci nici meniul **SPV**;
 - contabil-șef (`account.group_account_manager`) și administrator (**Administrare: Setări**):
   primesc notificarea de eroare (Pasul 6);
@@ -216,7 +217,8 @@ Dacă ANAF refuză listarea (token expirat, lipsa dreptului SPV pe CIF, limita d
 - contabilii-șefi și administratorii companiei primesc o notificare de la OdooBot, cu subiectul
   **Sincronizarea mesajelor SPV a eșuat: <companie>** și motivul primit de la ANAF. Notificarea
   apare în **Discuss → Casuța poștală** (primul element din Discuss) pentru cei cu **Notificare:
-  În Odoo** și pe email pentru cei cu **Prin e-mailuri** (opțiunea implicită).
+  În Odoo** și pe email pentru cei cu **Prin e-mailuri** (opțiunea implicită). Notificarea nu
+  e legată de o înregistrare: la click se deschide într-un dialog, cu textul complet.
 
 Notificarea se trimite o singură dată pentru aceeași eroare, nu la fiecare rulare. O eroare diferită
 produce o notificare nouă. Data **Ultima sincronizare a mesajelor SPV** din setări rămâne cea a
@@ -308,7 +310,7 @@ Mesajele de mai jos apar în notificarea de eroare sau, la **Actualizare**, dire
 | Lista mesajelor SPV nu a putut fi descărcată: Ați atins limita de solicitări. Vă rugăm să încercați din nou mai târziu. | limita zilnică de interogări ANAF | se reia automat la următoarea rulare; nu apăsați repetat **Actualizare** |
 | Lista mesajelor SPV nu a putut fi descărcată: Există o problemă cu SPV. Vă rugăm să încercați din nou mai târziu. / … Timeout la trimiterea către SPV… | serviciul ANAF e indisponibil (mentenanță) sau nu a răspuns la timp | se reia automat la rularea următoare; dacă persistă câteva zile, verificați anunțurile ANAF |
 | Lista mesajelor SPV nu a putut fi interpretată. | răspuns ANAF neașteptat (serviciu indisponibil) | reîncercați mai târziu |
-| No XML found in the downloaded ZIP. (în câmpul **Eroare** al mesajului) / Nu s-a găsit XML în ZIP-ul descărcat. (la butoanele **XML**, **PDF ANAF**) | arhiva descărcată nu conține factura | descărcați **ZIP**-ul, verificați conținutul și semnalați furnizorului sau ANAF; **Descarcă** nu redescarcă un mesaj care are deja arhiva |
+| Nu s-a găsit XML în ZIP-ul descărcat. (în câmpul **Eroare** al mesajului sau la butoanele **XML**, **PDF ANAF**) | arhiva descărcată nu conține factura | descărcați **ZIP**-ul, verificați conținutul și semnalați furnizorului sau ANAF; **Descarcă** nu redescarcă un mesaj care are deja arhiva |
 | Mesaj în starea **Eroare** după descărcare | 3 eșecuri de descărcare în aceeași zi (limita ANAF de 10 descărcări pe mesaj) | se reia automat a doua zi sau manual cu **Descarcă** |
 
 ## 10. Capturi de ecran

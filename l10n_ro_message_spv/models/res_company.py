@@ -185,7 +185,9 @@ class ResCompany(models.Model):
     def _l10n_ro_notify_spv_sync_error(self, error):
         """Trimite eroarea de sincronizare SPV (în Discuss sau pe email, după
         preferința fiecăruia) contabililor-șefi ai companiei și administratorilor
-        de setări, care pot regenera tokenul ANAF."""
+        de setări, care pot regenera tokenul ANAF. Notificarea nu e legată de
+        o înregistrare: în Discuss se deschide într-un dialog cu textul complet,
+        nu pe fișa partenerului companiei, unde nu apare."""
         self.ensure_one()
         groups = self.env.ref("account.group_account_manager") | self.env.ref(
             "base.group_system"
@@ -203,7 +205,7 @@ class ResCompany(models.Model):
         )
         if not users:
             return
-        self.partner_id.sudo().message_notify(
+        self.env["mail.thread"].sudo().message_notify(
             partner_ids=users.partner_id.ids,
             subject=self.env._(
                 "SPV message sync failed: %(company)s", company=self.name

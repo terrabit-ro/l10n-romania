@@ -1,3 +1,26 @@
+## 19.0.1.15.0
+
+- Fix internal transfers posting on the expense account when the product
+  category does not change accounts per location
+  (`l10n_ro_stock_account_change` unset). The counterpart of an internal
+  transfer was switched to a stock account only for categories with that flag,
+  so on the others it stayed 607: with valued internal transfers (FIFO per
+  location) each one posted Dr 482 / Cr 371 and Dr 607 / Cr 482, net
+  Dr 607 / Cr 371, and the stock account drifted away from the stock
+  valuation report. The counterpart is now the stock account of the
+  destination location, else the stock valuation account, so a transfer
+  within the same stock account posts nothing. Entries already posted are not
+  changed.
+
+## 19.0.1.14.0
+
+- Set the company stock transfer account (482) on databases migrated from
+  18.0. In 18.0 a transfer through a transit location without that account
+  fell back on the valuation account of the transit location; in 19.0 the
+  account is read only from the company, so validating such a transfer failed
+  with a missing debit account. The end-migration fills it on every Romanian
+  company that has none, from the transit location account, else 482.
+
 ## 19.0.1.13.0
 
 - Fix a transfer that mixes FIFO products with products costed otherwise

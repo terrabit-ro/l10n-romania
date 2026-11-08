@@ -347,7 +347,7 @@ class TestMessageSpvScreenshots(AccountTestInvoicingCommon, ScreenshotCase or ob
                 [
                     ("res_partner_id", "=", admin_partner.id),
                     ("notification_type", "=", "inbox"),
-                    ("mail_message_id.model", "=", "res.partner"),
+                    ("mail_message_id.model", "=", False),
                 ]
             ),
             "Notificarea de eroare SPV nu a ajuns în Inbox-ul administratorului.",
