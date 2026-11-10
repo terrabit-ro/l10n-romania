@@ -961,14 +961,13 @@ class TestMessageSPV(TestMessageSPV):
             }
         )
 
-        # get_partner
+        # get_partner: an unknown CIF creates no partner
         message_spv.get_partner()
-        self.assertTrue(message_spv.partner_id)
-        self.assertEqual(message_spv.partner_id.vat, "RO999")
+        self.assertFalse(message_spv.partner_id)
 
         # show_invoice
         invoice = self.env["account.move"].create(
-            {"move_type": "in_invoice", "partner_id": message_spv.partner_id.id}
+            {"move_type": "in_invoice", "partner_id": self.vendor.id}
         )
         message_spv.invoice_id = invoice
         action = message_spv.show_invoice()
@@ -1350,10 +1349,12 @@ class TestMessageSPV(TestMessageSPV):
         )
 
     def test_get_partner_from_cif_creates_normalized_partner(self):
-        """An unknown CIF creates a single partner, with the CIF normalized
-        without the RO prefix."""
+        """An unknown CIF creates no partner by default; on request it
+        creates a single partner, with the CIF normalized without the RO
+        prefix."""
         company = self.env.company
-        partner = company._l10n_ro_get_partner_from_cif("RO9999997")
+        self.assertFalse(company._l10n_ro_get_partner_from_cif("RO9999997"))
+        partner = company._l10n_ro_get_partner_from_cif("RO9999997", create=True)
         self.assertEqual(partner.name, "Unknown")
         self.assertEqual(partner.vat, "9999997")
         self.assertEqual(partner.company_id, company)
@@ -1403,9 +1404,9 @@ class TestMessageSPV(TestMessageSPV):
             }
         )
         message.get_partner()
-        self.assertTrue(message.partner_id)
+        # the foreign partner is not reused, and no partner is created
         self.assertNotEqual(message.partner_id, foreign_partner)
-        self.assertEqual(message.partner_id.company_id, self.env.company)
+        self.assertFalse(message.partner_id)
 
         foreign_partner_2 = self.env["res.partner"].create(
             {
@@ -1416,7 +1417,7 @@ class TestMessageSPV(TestMessageSPV):
                 "company_id": other_company.id,
             }
         )
-        partner = self.env.company._l10n_ro_get_partner_from_cif("9999997")
+        partner = self.env.company._l10n_ro_get_partner_from_cif("9999997", create=True)
         self.assertNotEqual(partner, foreign_partner_2)
         self.assertEqual(partner.name, "Unknown")
         self.assertEqual(partner.company_id, self.env.company)
