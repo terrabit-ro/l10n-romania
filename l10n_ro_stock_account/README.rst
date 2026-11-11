@@ -200,6 +200,19 @@ Performance notes
 Changelog
 =========
 
+19.0.1.16.0
+-----------
+
+- Fix internal transfers posting on the expense account when the product
+  category changes accounts per location
+  (``l10n_ro_stock_account_change`` set). The expense account of the
+  source location overwrote the counterpart of the transfer, so each
+  valued transfer between locations with different stock accounts posted
+  Dr 482 / Cr 371 (source) and Dr 607 (source) / Cr 482 - net Dr 607 /
+  Cr 371 - instead of Dr 371 (destination) / Cr 482. The counterpart is
+  now always the stock account of the destination location. Entries
+  already posted are not changed.
+
 19.0.1.15.0
 -----------
 
