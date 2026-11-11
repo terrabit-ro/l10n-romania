@@ -61,7 +61,10 @@ class ProductTemplate(models.Model):
 
             if inc_acc:
                 accounts["income"] = inc_acc
-            if exp_acc:
+            # The counterpart of an internal transfer stays the stock account
+            # of the destination location set above, not the expense account
+            # of the source location.
+            if exp_acc and stock_move.l10n_ro_move_type != "internal_transfer":
                 accounts["expense"] = exp_acc
             if stock_acc:
                 accounts["stock_valuation"] = stock_acc
