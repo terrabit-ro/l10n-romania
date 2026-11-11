@@ -30,6 +30,13 @@
                     <label for="l10n_ro_spv_last_sync" class="col-lg-3 o_light_label" />
                     <field name="l10n_ro_spv_last_sync" />
                 </div>
+                <div class="row">
+                    <label
+                        for="l10n_ro_spv_review_required"
+                        class="col-lg-3 o_light_label"
+                    />
+                    <field name="l10n_ro_spv_review_required" />
+                </div>
             </xpath>
         </field>
     </record>

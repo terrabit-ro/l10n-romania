@@ -1,3 +1,27 @@
+**19.0.2.16.0 (2026-11-10)**
+
+- The invoice XML is read in full: besides number, date, currency and
+  total, the message now holds the partner name, the due date, the
+  untaxed amount and the VAT. The SPV message list shows them, with
+  search, filters (due date, review, accounted) and grouping by partner,
+  review and currency, and downloads the PDF and the XML from each row.
+- No partner is created any more while SPV messages are synchronized or
+  linked. An unknown CIF used to create an "Unknown" partner (and the
+  matching created one named after the CIF), which filled the partner
+  list. The message now shows the name and CIF from the XML, and the
+  partner is created from the XML only when the bill is created. A
+  partner named "Unknown" left by earlier versions takes the real name
+  from the XML when its message is read.
+- Received invoices can be reviewed before processing: new setting
+  *Review received invoices* in the e-Factura settings, off by default.
+  When it is on, new received invoices arrive as To Review, can be
+  accepted or rejected (with a mandatory reason, logged in the chatter
+  with the decision history), and a bill can be created only from an
+  accepted invoice. Accepting creates or posts nothing.
+- `process_xml()` is the extension point for the values read from the
+  XML; `l10n_ro_message_spv_purchase` uses it to fill the purchase order
+  reference.
+
 **19.0.2.15.1 (2026-10-30)**
 
 - Indexed the SPV message attachment. Every deleted attachment checks this

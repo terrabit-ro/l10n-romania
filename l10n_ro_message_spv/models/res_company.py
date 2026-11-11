@@ -28,6 +28,11 @@ class ResCompany(models.Model):
     l10n_ro_spv_last_sync_error = fields.Text(
         string="Last SPV message sync error", readonly=True, copy=False
     )
+    l10n_ro_spv_review_required = fields.Boolean(
+        string="Review received invoices",
+        help="Received invoices arrive in SPV messages as To Review and a bill "
+        "can be created only from an accepted invoice.",
+    )
 
     def l10n_ro_download_zip_message_spv(self, limit=5):
         # method to be used in cron job to auto download e-invoices from ANAF
@@ -99,15 +104,22 @@ class ResCompany(models.Model):
         ro_companies = self or self.env["res.company"].sudo().search(domain)
         return ro_companies._l10n_ro_download_message_spv()
 
-    def _l10n_ro_get_partner_from_cif(self, cif):
+    def _l10n_ro_get_partner_from_cif(self, cif, create=False):
+        """The partner of this company holding this CIF, if any.
+
+        With `create`, an unknown CIF gets a placeholder partner, as earlier
+        versions of this module always did; the SPV synchronization no longer
+        does it, so the partner list is not filled with "Unknown" partners."""
         self.ensure_one()
         company_id = self.id
 
         # ANAF sends the CIF sometimes with and sometimes without the "RO"
         # prefix, while the partner stored in Odoo may hold the other variant.
-        # Search both spellings, otherwise the lookup fails and a duplicate
-        # "Unknown" partner is created for an already known company.
+        # Search both spellings, otherwise the lookup fails for an already
+        # known company.
         cif_clean = re.sub(r"^RO", "", (cif or "").strip().upper())
+        if not cif_clean:
+            return self.env["res.partner"]
         cif_variants = [cif_clean, "RO" + cif_clean]
         # Multi-company: only partners of this company (or shared ones) may
         # be matched, so that data does not leak between companies.
@@ -131,7 +143,7 @@ class ResCompany(models.Model):
             partner = _search([("is_company", "=", True)] + company_domain)
         if not partner:
             partner = _search(company_domain)
-        if not partner:
+        if not partner and create:
             partner = self.env["res.partner"].create(
                 {
                     "name": "Unknown",
@@ -237,7 +249,13 @@ class ResCompany(models.Model):
             company_messages = obj_edi_document._request_ciusro_download_messages_spv(
                 company, no_days=days
             )
-            message_spv_obj = obj_message_spv.with_company(company).sudo()
+            # No chatter entry and no follower for each synchronized message:
+            # the history is kept only for the review decisions.
+            message_spv_obj = (
+                obj_message_spv.with_company(company)
+                .sudo()
+                .with_context(tracking_disable=True)
+            )
 
             for message in company_messages:
                 domain = [("name", "=", message["id"])]
@@ -270,6 +288,11 @@ class ResCompany(models.Model):
                     else:
                         _logger.error("Unknown message type: %s", message["tip"])
 
+                    review_state = False
+                    if company.l10n_ro_spv_review_required and message_type == (
+                        "in_invoice"
+                    ):
+                        review_state = "pending"
                     message_spv_obj.create(
                         {
                             "name": message["id"],
@@ -280,7 +303,9 @@ class ResCompany(models.Model):
                             "request_id": message["id_solicitare"],
                             "company_id": company.id,
                             "partner_id": partner.id,
+                            "partner_name": partner.name,
                             "state": "draft",
+                            "review_state": review_state,
                         }
                     )
 

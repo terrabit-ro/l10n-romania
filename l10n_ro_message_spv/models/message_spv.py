@@ -16,9 +16,21 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 session = requests.Session()
 
+RECEIVED_TYPES = ("in_invoice", "in_receipt")
+
+
+def _cif_variants(cif):
+    """The CIF with and without the "RO" prefix: ANAF and the partners in
+    Odoo do not always use the same spelling."""
+    cif_clean = re.sub(r"^RO", "", (cif or "").strip().upper())
+    if not cif_clean:
+        return []
+    return [cif_clean, "RO" + cif_clean]
+
 
 class MessageSPV(models.Model):
     _name = "l10n.ro.message.spv"
+    _inherit = ["mail.thread"]
     _description = "Message SPV"
     _order = "date desc"
     _check_company_auto = True
@@ -48,6 +60,11 @@ class MessageSPV(models.Model):
 
     invoice_id = fields.Many2one("account.move", string="Invoice", check_company=True)
     partner_id = fields.Many2one("res.partner", string="Partner", check_company=True)
+    # Denumirea partenerului din XML (furnizorul la facturile primite,
+    # clientul la cele trimise): se vede și când partenerul nu există în Odoo,
+    # fără să fie creat la simpla preluare a mesajului.
+    partner_name = fields.Char()
+    invoice_date_due = fields.Date(string="Due Date")
 
     # draft - starea initiala a mesajului descarcat din SPV
     # downloaded - fisierul a fost descarcat cu succes
@@ -94,8 +111,25 @@ class MessageSPV(models.Model):
         string="Embedded PDF",
         compute="_compute_derived_attachments",
     )
-    amount = fields.Monetary()
+    amount_untaxed = fields.Monetary(string="Untaxed Amount")
+    amount_tax = fields.Monetary(string="Tax")
+    amount = fields.Monetary(string="Total")
     invoice_amount = fields.Monetary()
+
+    # Verificarea internă a facturilor primite, separată de starea tehnică a
+    # mesajului (state): acceptarea nu creează și nu confirmă nimic.
+    review_state = fields.Selection(
+        [
+            ("pending", "To Review"),
+            ("accepted", "Accepted"),
+            ("rejected", "Rejected"),
+        ],
+        string="Review",
+        tracking=True,
+        copy=False,
+    )
+    review_reason = fields.Text(string="Rejection Reason", copy=False)
+    review_required = fields.Boolean(related="company_id.l10n_ro_spv_review_required")
 
     company_id = fields.Many2one(
         "res.company", "Company", default=lambda self: self.env.company
@@ -275,56 +309,116 @@ class MessageSPV(models.Model):
 
             recovering_parser = etree.XMLParser(recover=True)
             xml_tree = etree.fromstring(xml_bytes, parser=recovering_parser)
+            # attachment_xml is passed explicitly: overrides written for the
+            # former signature (l10n_ro_message_spv_purchase) require it.
+            values = message.process_xml(xml_tree, False)
+            message.write(values)
+            message._l10n_ro_match_partner()
 
-            type_code_node = xml_tree.find("./{*}InvoiceTypeCode")
-            if type_code_node is not None:
-                type_code = type_code_node.text
-                if type_code == "751":
-                    if message.message_type == "in_invoice":
-                        message.message_type = "in_receipt"
-                    elif message.message_type == "out_invoice":
-                        message.message_type = "out_receipt"
+    def process_xml(self, xml_tree, attachment_xml=None):
+        """Return the message values read from the invoice XML.
 
-            ref_node = xml_tree.find("./{*}ID")
-            ref = message.ref
-            if ref_node is not None:
-                ref = ref_node.text
+        Extension point: a module that needs more data from the XML (e.g.
+        the purchase order reference) adds it to the returned values.
+        `attachment_xml` is kept for the overrides written for the former
+        signature; the XML is no longer stored as an attachment here."""
+        self.ensure_one()
+        values = {}
+        message_type = self.message_type
 
-            invoice_date_node = xml_tree.find("./{*}IssueDate")
-            invoice_date = message.invoice_date
-            if invoice_date_node is not None:
-                invoice_date = invoice_date_node.text
+        type_code = xml_tree.findtext("./{*}InvoiceTypeCode")
+        if type_code == "751":
+            if message_type == "in_invoice":
+                message_type = "in_receipt"
+            elif message_type == "out_invoice":
+                message_type = "out_receipt"
+            values["message_type"] = message_type
 
-            currency = message.currency_id
-            currency_node = xml_tree.find("./{*}DocumentCurrencyCode")
-            if currency_node is not None:
-                currency_code = currency_node.text
-                currency = self.env["res.currency"].search(
-                    [("name", "=", currency_code)]
-                )
+        ref = xml_tree.findtext("./{*}ID")
+        values["ref"] = ref if ref is not None else self.ref
 
-            amount = False
-            amount_note = xml_tree.find(
-                ".//{*}LegalMonetaryTotal/{*}TaxInclusiveAmount"
+        invoice_date = xml_tree.findtext("./{*}IssueDate")
+        values["invoice_date"] = invoice_date or self.invoice_date
+
+        # BT-9: DueDate pe factură; la nota de credit termenul stă în
+        # PaymentMeans/PaymentDueDate.
+        due_date = xml_tree.findtext("./{*}DueDate") or xml_tree.findtext(
+            "./{*}PaymentMeans/{*}PaymentDueDate"
+        )
+        values["invoice_date_due"] = due_date or self.invoice_date_due
+
+        currency = self.currency_id
+        currency_code = xml_tree.findtext("./{*}DocumentCurrencyCode")
+        if currency_code:
+            currency = (
+                self.env["res.currency"].search([("name", "=", currency_code)], limit=1)
+                or currency
             )
+        values["currency_id"] = currency.id or self.currency_id.id
 
-            if amount_note is not None:
-                amount = float(amount_note.text)
+        sign = 1
+        xml_tag_credit_note = (
+            "{urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2}CreditNote"  # noqa
+        )
+        if xml_tree.tag == xml_tag_credit_note:
+            sign = -1
 
-            xml_tag_credit_note = (
-                "{urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2}CreditNote"  # noqa
-            )
-            if xml_tree.tag == xml_tag_credit_note:
-                amount = -1 * amount
+        def _amount(path):
+            text = xml_tree.findtext(f".//{{*}}LegalMonetaryTotal/{{*}}{path}")
+            return sign * float(text) if text else False
 
-            message.write(
-                {
-                    "ref": ref,
-                    "amount": amount,
-                    "invoice_date": invoice_date,
-                    "currency_id": currency.id or message.currency_id.id,
-                }
-            )
+        amount = _amount("TaxInclusiveAmount")
+        amount_untaxed = _amount("TaxExclusiveAmount")
+        values["amount"] = amount
+        values["amount_untaxed"] = amount_untaxed
+        # BR-CO-15: total cu TVA = total fără TVA + TVA, în moneda facturii.
+        # TaxTotal poate apărea de două ori (și în moneda de contabilizare),
+        # de aceea TVA-ul se deduce din totaluri.
+        values["amount_tax"] = (
+            amount - amount_untaxed
+            if amount is not False and amount_untaxed is not False
+            else False
+        )
+
+        if message_type in ("in_invoice", "in_receipt"):
+            party_path = "./{*}AccountingSupplierParty/{*}Party"
+        elif message_type in ("out_invoice", "out_receipt"):
+            party_path = "./{*}AccountingCustomerParty/{*}Party"
+        else:
+            party_path = False
+        if party_path:
+            party_name = xml_tree.findtext(
+                f"{party_path}/{{*}}PartyLegalEntity/{{*}}RegistrationName"
+            ) or xml_tree.findtext(f"{party_path}/{{*}}PartyName/{{*}}Name")
+            party_vat = xml_tree.findtext(
+                f"{party_path}/{{*}}PartyTaxScheme/{{*}}CompanyID"
+            ) or xml_tree.findtext(f"{party_path}/{{*}}PartyLegalEntity/{{*}}CompanyID")
+            if party_name:
+                values["partner_name"] = party_name.strip()
+            if party_vat and not self.cif:
+                values["cif"] = party_vat.strip()
+        return values
+
+    def _l10n_ro_match_partner(self):
+        """Link the message to the partner found by CIF, without creating
+        one: a supplier missing from Odoo must not stop the message from
+        being read and checked. The partner is created later, from the XML,
+        when the bill is created.
+
+        A partner named "Unknown" was created by earlier versions of this
+        module for every unknown CIF; it takes the real name from the XML."""
+        for message in self:
+            if not message.partner_id and message.cif:
+                partner = message.company_id._l10n_ro_get_partner_from_cif(message.cif)
+                if partner:
+                    message.partner_id = partner
+            if (
+                message.partner_id.name == "Unknown"
+                and message.partner_name
+                and message.partner_id.vat
+                and message.partner_id.vat.upper() in _cif_variants(message.cif)
+            ):
+                message.partner_id.sudo().name = message.partner_name
 
     def _decode_xml(self, filename, content):
         to_process = []
@@ -451,8 +545,20 @@ class MessageSPV(models.Model):
                 else:
                     move_type = ("out_invoice", "out_refund")
 
-                domain = [
-                    ("commercial_partner_id", "=", message.partner_id.id),
+                if message.partner_id:
+                    partner_domain = [
+                        ("commercial_partner_id", "=", message.partner_id.id)
+                    ]
+                else:
+                    # Supplier not linked yet: match the bill by its CIF.
+                    partner_domain = [
+                        (
+                            "commercial_partner_id.vat",
+                            "in",
+                            _cif_variants(message.cif) or [False],
+                        )
+                    ]
+                domain = partner_domain + [
                     ("ref", "=", message.ref),
                     ("move_type", "in", move_type),
                 ]
@@ -533,6 +639,20 @@ class MessageSPV(models.Model):
 
     def create_invoice(self):
         self.get_partner()
+        not_accepted = self.filtered(
+            lambda m: m.review_required
+            and not m.invoice_id
+            and m.message_type in RECEIVED_TYPES
+            and m.review_state != "accepted"
+        )
+        if not_accepted:
+            raise UserError(
+                self.env._(
+                    "Only accepted invoices can be processed. Accept these "
+                    "invoices first: %(refs)s",
+                    refs=", ".join(not_accepted.mapped(lambda m: m.ref or m.name)),
+                )
+            )
         for message in self.filtered(lambda m: not m.invoice_id):
             if message.message_type not in ("in_invoice", "in_receipt"):
                 continue
@@ -632,7 +752,16 @@ class MessageSPV(models.Model):
 
             state = "invoice"
 
-            message.write({"invoice_id": new_invoice.id, "state": state})
+            # The supplier unknown until now was created by the UBL import,
+            # from the name and CIF in the XML.
+            message.write(
+                {
+                    "invoice_id": new_invoice.id,
+                    "state": state,
+                    "partner_id": new_invoice.commercial_partner_id.id
+                    or message.partner_id.id,
+                }
+            )
 
     def _render_anaf_pdf_bytes(self, no_validate=None):
         """Convert the invoice XML to PDF via the ANAF webservice.
@@ -715,6 +844,17 @@ class MessageSPV(models.Model):
             )
         return self._action_download_derived("embedded_pdf")
 
+    def action_download_pdf(self):
+        """The invoice PDF: the one embedded by the supplier in the XML, or,
+        when there is none, the PDF rendered by ANAF."""
+        self.ensure_one()
+        if self.attachment_embedded_pdf_id:
+            return self._action_download(self.attachment_embedded_pdf_id.id)
+        _name, pdf_bytes = self._get_embedded_pdf_bytes()
+        if pdf_bytes:
+            return self._action_download_derived("embedded_pdf")
+        return self.action_download_anaf_pdf()
+
     def _action_download(self, attachment_field_id):
         return {
             "type": "ir.actions.act_url",
@@ -732,36 +872,80 @@ class MessageSPV(models.Model):
         }
 
     def get_partner(self):
+        """Link the messages without a partner to the partner found by CIF.
+
+        No partner is created: the name of an unknown supplier is shown from
+        the XML (partner_name), and the partner itself is created from the
+        XML only when the bill is created."""
         partner_obj = self.env["res.partner"]
         for message in self.filtered(lambda m: not m.partner_id):
-            if message.cif:
-                # The CIF may reach us with or without the "RO" prefix, while
-                # the partner in Odoo can hold the other spelling: try both.
-                cif_clean = re.sub(r"^RO", "", message.cif.strip().upper())
-                partner = partner_obj.browse()
-                for variant in (cif_clean, "RO" + cif_clean):
-                    partner = partner_obj.search(
-                        [
-                            ("vat", "=ilike", variant),
-                            ("is_company", "=", True),
-                            "|",
-                            ("company_id", "=", message.company_id.id),
-                            ("company_id", "=", False),
-                        ],
-                        limit=1,
-                    )
-                    if partner:
-                        break
-                if not partner:
-                    partner = partner_obj.create(
-                        {
-                            "name": message.cif,
-                            "vat": message.cif,
-                            "is_company": True,
-                            "company_id": message.company_id.id,
-                        }
-                    )
-                message.write({"partner_id": partner.id})
+            # The CIF may reach us with or without the "RO" prefix, while
+            # the partner in Odoo can hold the other spelling: try both.
+            for variant in _cif_variants(message.cif):
+                partner = partner_obj.search(
+                    [
+                        ("vat", "=ilike", variant),
+                        ("is_company", "=", True),
+                        "|",
+                        ("company_id", "=", message.company_id.id),
+                        ("company_id", "=", False),
+                    ],
+                    limit=1,
+                )
+                if partner:
+                    message.write({"partner_id": partner.id})
+                    break
+
+    def action_accept(self):
+        """Accept the received invoices internally. Nothing is created or
+        posted: the bill is created later, from the accepted message."""
+        messages = self._l10n_ro_check_reviewable()
+        messages.filtered(lambda m: m.review_state != "accepted").write(
+            {"review_state": "accepted", "review_reason": False}
+        )
+
+    def action_reject(self):
+        messages = self._l10n_ro_check_reviewable()
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Reject Invoice"),
+            "res_model": "l10n.ro.message.spv.reject",
+            "view_mode": "form",
+            "target": "new",
+            "context": {"default_message_ids": messages.ids},
+        }
+
+    def action_review_reset(self):
+        messages = self._l10n_ro_check_reviewable()
+        messages.write({"review_state": "pending", "review_reason": False})
+
+    def _l10n_ro_reject(self, reason):
+        messages = self._l10n_ro_check_reviewable()
+        with_invoice = messages.filtered(
+            lambda m: m.invoice_id and m.invoice_id.state != "cancel"
+        )
+        if with_invoice:
+            raise UserError(
+                self.env._(
+                    "A bill was already created from these messages: %(refs)s. "
+                    "Cancel the bill before rejecting the invoice.",
+                    refs=", ".join(with_invoice.mapped(lambda m: m.ref or m.name)),
+                )
+            )
+        messages.write({"review_state": "rejected", "review_reason": reason})
+        for message in messages:
+            message.message_post(
+                body=self.env._("Invoice rejected: %(reason)s", reason=reason)
+            )
+
+    def _l10n_ro_check_reviewable(self):
+        """Only the received invoices are reviewed."""
+        messages = self.filtered(lambda m: m.message_type in RECEIVED_TYPES)
+        if not messages:
+            raise UserError(
+                self.env._("Only the invoices received through SPV can be reviewed.")
+            )
+        return messages
 
     def refresh(self):
         l10n_ro_refresh_message_days = int(

@@ -4,14 +4,32 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 19.0\n"
+"Project-Id-Version: Odoo Server 19.0+e\n"
 "Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-10 13:07+0000\n"
+"PO-Revision-Date: 2026-11-10 13:07+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
 "Plural-Forms: \n"
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/res_company.py:0
+msgid ""
+"%(error)s Messages older than 60 days can no longer be listed from ANAF, so "
+"check the ANAF token in the e-Factura settings."
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/message_spv.py:0
+msgid ""
+"A bill was already created from these messages: %(refs)s. Cancel the bill "
+"before rejecting the invoice."
+msgstr ""
 
 #. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__attachment_anaf_pdf_id
@@ -30,6 +48,18 @@ msgid "ANAF service unable to generate PDF from this XML."
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_form
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_tree
+msgid "Accept"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields.selection,name:l10n_ro_message_spv.selection__l10n_ro_message_spv__review_state__accepted
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
+msgid "Accepted"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #. odoo-python
 #: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
 msgid "Access token is forbidden."
@@ -42,8 +72,13 @@ msgid "Access token is unauthorized."
 msgstr ""
 
 #. module: l10n_ro_message_spv
-#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__amount
-msgid "Amount"
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
+msgid "Accounted"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_needaction
+msgid "Action Needed"
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -58,8 +93,23 @@ msgid "Attachment"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_attachment_count
+msgid "Attachment Count"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_form
+msgid "Back to Review"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model,name:l10n_ro_message_spv.model_account_edi_xml_ubl_ro
 msgid "CIUS RO"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_reject_form
+msgid "Cancel"
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -97,16 +147,19 @@ msgstr ""
 
 #. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__create_uid
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__create_uid
 msgid "Created by"
 msgstr ""
 
 #. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__create_date
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__create_date
 msgid "Created on"
 msgstr ""
 
 #. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__currency_id
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
 msgid "Currency"
 msgstr ""
 
@@ -127,6 +180,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_account_move_line__display_name
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_edi_document__display_name
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__display_name
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__display_name
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_product_product__display_name
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__display_name
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__display_name
@@ -166,7 +220,13 @@ msgid "Download the PDF rendered by ANAF"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_tree
+msgid "Download the invoice PDF"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_form
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_tree
 msgid "Download the invoice XML"
 msgstr ""
 
@@ -184,6 +244,12 @@ msgstr ""
 #: model:ir.model.fields.selection,name:l10n_ro_message_spv.selection__l10n_ro_message_spv__state__draft
 #: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
 msgid "Draft"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__invoice_date_due
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
+msgid "Due Date"
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -220,9 +286,24 @@ msgid "File Name"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_follower_ids
+msgid "Followers"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_partner_ids
+msgid "Followers (Partners)"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_form
 #: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_tree
 msgid "Get Invoice"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__has_message
+msgid "Has Message"
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -231,6 +312,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_account_move_line__id
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_edi_document__id
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__id
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__id
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_product_product__id
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__id
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__id
@@ -247,6 +329,17 @@ msgstr ""
 #: model:ir.model.fields,help:l10n_ro_message_spv.field_account_bank_statement_line__l10n_ro_edi_download
 #: model:ir.model.fields,help:l10n_ro_message_spv.field_account_move__l10n_ro_edi_download
 msgid "ID used to download the ZIP file from ANAF."
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__message_has_error
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -282,6 +375,17 @@ msgid "Invoice Date"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/message_spv.py:0
+msgid "Invoice rejected: %(reason)s"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_is_follower
+msgid "Is Follower"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model,name:l10n_ro_message_spv.model_account_move
 msgid "Journal Entry"
 msgstr ""
@@ -297,12 +401,25 @@ msgid "Last Download Date"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_last_sync
+msgid "Last SPV message sync"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync_error
+msgid "Last SPV message sync error"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__write_uid
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__write_uid
 msgid "Last Updated by"
 msgstr ""
 
 #. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__write_date
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__write_date
 msgid "Last Updated on"
 msgstr ""
 
@@ -326,6 +443,11 @@ msgid "Message"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_has_error
+msgid "Message Delivery error"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__name
 msgid "Message ID"
 msgstr ""
@@ -341,6 +463,12 @@ msgid "Message SPV"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_ids
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__message_ids
+msgid "Messages"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.actions.act_window,name:l10n_ro_message_spv.action_l10n_ro_message_spv
 #: model:ir.ui.menu,name:l10n_ro_message_spv.menu_l10n_ro_message_spv
 msgid "Messages SPV"
@@ -350,6 +478,45 @@ msgstr ""
 #. odoo-python
 #: code:addons/l10n_ro_message_spv/models/message_spv.py:0
 msgid "No XML found in the downloaded ZIP."
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
+msgid "Not Accounted"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_needaction_counter
+msgid "Number of Actions"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_has_error_counter
+msgid "Number of errors"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/message_spv.py:0
+msgid ""
+"Only accepted invoices can be processed. Accept these invoices first: "
+"%(refs)s"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/message_spv.py:0
+msgid "Only the invoices received through SPV can be reviewed."
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -384,8 +551,27 @@ msgid "Partner"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__partner_name
+msgid "Partner Name"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model,name:l10n_ro_message_spv.model_product_product
 msgid "Product Variant"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv_reject__reason
+msgid "Reason"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__review_required
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_res_company__l10n_ro_spv_review_required
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_review_required
+msgid ""
+"Received invoices arrive in SPV messages as To Review and a bill can be "
+"created only from an accepted invoice."
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -400,8 +586,50 @@ msgid "Refresh"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_form
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_reject_form
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_tree
+msgid "Reject"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/message_spv.py:0
+msgid "Reject Invoice"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model,name:l10n_ro_message_spv.model_l10n_ro_message_spv_reject
+msgid "Reject SPV Invoice"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields.selection,name:l10n_ro_message_spv.selection__l10n_ro_message_spv__review_state__rejected
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
+msgid "Rejected"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__review_reason
+msgid "Rejection Reason"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__request_id
 msgid "Request ID"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__review_state
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
+msgid "Review"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__review_required
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_review_required
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_review_required
+msgid "Review received invoices"
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -421,8 +649,19 @@ msgid "Romania e-Invoicing: Download ZIP SPV Message"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.ui.menu,name:l10n_ro_message_spv.menu_l10n_ro_spv
 msgid "SPV"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/res_company.py:0
+msgid "SPV message sync failed: %(company)s"
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -437,9 +676,26 @@ msgid "State"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__amount_tax
+msgid "Tax"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,help:l10n_ro_message_spv.field_account_bank_statement_line__l10n_ro_edi_transaction
 #: model:ir.model.fields,help:l10n_ro_message_spv.field_account_move__l10n_ro_edi_transaction
 msgid "Technical field used to track the status of a submission."
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
+msgid "The SPV message list could not be downloaded: %(error)s"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
+msgid "The SPV message list could not be parsed."
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -462,6 +718,17 @@ msgid ""
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields.selection,name:l10n_ro_message_spv.selection__l10n_ro_message_spv__review_state__pending
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_search
+msgid "To Review"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__amount
+msgid "Total"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_account_bank_statement_line__l10n_ro_edi_transaction
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_account_move__l10n_ro_edi_transaction
 msgid "Transaction ID (RO)"
@@ -480,8 +747,28 @@ msgid "Unknown endpoint."
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__amount_untaxed
+msgid "Untaxed Amount"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_account_move_line__l10n_ro_vendor_code
 msgid "Vendor Code"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__website_message_ids
+msgid "Website Messages"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__website_message_ids
+msgid "Website communication history"
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_reject_form
+msgid "Why is the invoice rejected?"
 msgstr ""
 
 #. module: l10n_ro_message_spv
@@ -494,41 +781,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
 msgid "You reached the limit of requests. Please try again later."
-msgstr ""
-
-#. module: l10n_ro_message_spv
-#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync
-#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_last_sync
-msgid "Last SPV message sync"
-msgstr ""
-
-#. module: l10n_ro_message_spv
-#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_last_sync_error
-msgid "Last SPV message sync error"
-msgstr ""
-
-#. module: l10n_ro_message_spv
-#. odoo-python
-#: code:addons/l10n_ro_message_spv/models/res_company.py:0
-msgid "SPV message sync failed: %(company)s"
-msgstr ""
-
-#. module: l10n_ro_message_spv
-#. odoo-python
-#: code:addons/l10n_ro_message_spv/models/res_company.py:0
-msgid "%(error)s Messages older than 60 days can no longer be listed from ANAF, so check the ANAF token in the e-Factura settings."
-msgstr ""
-
-#. module: l10n_ro_message_spv
-#. odoo-python
-#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
-msgid "The SPV message list could not be downloaded: %(error)s"
-msgstr ""
-
-#. module: l10n_ro_message_spv
-#. odoo-python
-#: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
-msgid "The SPV message list could not be parsed."
 msgstr ""
 
 #. module: l10n_ro_message_spv

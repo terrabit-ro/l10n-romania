@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_l10n_ro_message_spv_reject_form" model="ir.ui.view">
+        <field name="name">l10n.ro.message.spv.reject.form</field>
+        <field name="model">l10n.ro.message.spv.reject</field>
+        <field name="arch" type="xml">
+            <form>
+                <field name="message_ids" invisible="1" />
+                <group>
+                    <field name="reason" placeholder="Why is the invoice rejected?" />
+                </group>
+                <footer>
+                    <button
+                        name="action_reject"
+                        string="Reject"
+                        type="object"
+                        class="btn-primary"
+                    />
+                    <button string="Cancel" class="btn-secondary" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

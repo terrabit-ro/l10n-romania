@@ -34,26 +34,44 @@
                         type="object"
                     />
                     <button name="show_invoice" string="Show Invoice" type="object" />
+                    <button
+                        name="action_accept"
+                        groups="account.group_account_user"
+                        string="Accept"
+                        type="object"
+                    />
+                    <button
+                        name="action_reject"
+                        groups="account.group_account_user"
+                        string="Reject"
+                        type="object"
+                    />
                 </header>
 
-                <field name="name" />
+                <field name="name" optional="hide" />
                 <field name="ref" />
-                <field name="message_type" />
-                <field name="date" />
+                <field name="message_type" optional="show" />
+                <field name="partner_name" />
+                <field name="cif" optional="show" />
+                <field name="partner_id" optional="hide" />
                 <field name="invoice_date" />
-
-                <field name="partner_id" />
-                <field name="request_id" />
+                <field name="invoice_date_due" optional="show" />
+                <field name="date" optional="show" />
+                <field name="request_id" optional="hide" />
                 <field name="company_id" groups="base.group_multi_company" />
-                <field name="currency_id" column_invisible="1" />
+                <field name="currency_id" optional="show" />
+                <field name="amount_untaxed" sum="1" optional="show" />
+                <field name="amount_tax" sum="1" optional="show" />
                 <field
                     name="amount"
                     sum="1"
                     decoration-danger="invoice_amount and amount != invoice_amount"
                 />
                 <field name="invoice_amount" column_invisible="1" />
+                <field name="attachment_id" column_invisible="1" />
+                <field name="review_required" column_invisible="1" />
 
-                <field name="invoice_id" />
+                <field name="invoice_id" optional="show" />
                 <field
                     name="state"
                     widget="badge"
@@ -61,6 +79,28 @@
                     decoration-info="state == 'downloaded'"
                     decoration-primary="state == 'invoice'"
                     decoration-danger="state == 'error'"
+                />
+                <field
+                    name="review_state"
+                    widget="badge"
+                    optional="show"
+                    decoration-warning="review_state == 'pending'"
+                    decoration-success="review_state == 'accepted'"
+                    decoration-danger="review_state == 'rejected'"
+                />
+                <button
+                    name="action_download_pdf"
+                    type="object"
+                    icon="fa-file-pdf-o"
+                    title="Download the invoice PDF"
+                    invisible="not attachment_id"
+                />
+                <button
+                    name="action_download_xml"
+                    type="object"
+                    icon="fa-file-code-o"
+                    title="Download the invoice XML"
+                    invisible="not attachment_id"
                 />
             </list>
         </field>
@@ -124,6 +164,28 @@
                         invisible="not attachment_id"
                         title="Download the PDF embedded in the invoice XML"
                     />
+                    <button
+                        name="action_accept"
+                        string="Accept"
+                        type="object"
+                        class="btn-primary"
+                        groups="account.group_account_user"
+                        invisible="not review_required or message_type not in ('in_invoice', 'in_receipt') or review_state == 'accepted'"
+                    />
+                    <button
+                        name="action_reject"
+                        string="Reject"
+                        type="object"
+                        groups="account.group_account_user"
+                        invisible="not review_required or message_type not in ('in_invoice', 'in_receipt') or review_state == 'rejected'"
+                    />
+                    <button
+                        name="action_review_reset"
+                        string="Back to Review"
+                        type="object"
+                        groups="account.group_account_user"
+                        invisible="not review_required or review_state in (False, 'pending')"
+                    />
                 </header>
                 <sheet>
                     <group>
@@ -140,11 +202,15 @@
                                 name="company_id"
                                 groups="base.group_multi_company"
                             />
+                            <field name="partner_name" />
                             <field name="partner_id" />
                             <field name="ref" />
                             <field name="invoice_date" />
+                            <field name="invoice_date_due" />
                             <field name="invoice_id" />
-                            <field name="currency_id" invisible="1" />
+                            <field name="currency_id" />
+                            <field name="amount_untaxed" />
+                            <field name="amount_tax" />
                             <field
                                 name="amount"
                                 decoration-danger="invoice_amount and amount != invoice_amount"
@@ -158,6 +224,20 @@
                                 decoration-primary="state == 'invoice'"
                                 decoration-danger="state == 'error'"
                             />
+                            <field name="review_required" invisible="1" />
+                            <field name="attachment_id" invisible="1" />
+                            <field
+                                name="review_state"
+                                widget="badge"
+                                invisible="not review_state"
+                                decoration-warning="review_state == 'pending'"
+                                decoration-success="review_state == 'accepted'"
+                                decoration-danger="review_state == 'rejected'"
+                            />
+                            <field
+                                name="review_reason"
+                                invisible="review_state != 'rejected'"
+                            />
                         </group>
 
                         <group
@@ -169,6 +249,7 @@
                         </group>
                     </group>
                 </sheet>
+                <chatter />
             </form>
         </field>
     </record>
@@ -180,6 +261,8 @@
         <field name="arch" type="xml">
             <search>
                 <field name="ref" />
+                <field name="partner_name" />
+                <field name="cif" />
                 <field name="name" />
                 <field name="message_type" />
                 <field name="date" />
@@ -217,11 +300,43 @@
                         domain="[('message_type', '=', 'error')]"
                     />
                     <separator />
+                    <filter
+                        string="To Review"
+                        name="review_pending"
+                        domain="[('review_state', '=', 'pending')]"
+                    />
+                    <filter
+                        string="Accepted"
+                        name="review_accepted"
+                        domain="[('review_state', '=', 'accepted')]"
+                    />
+                    <filter
+                        string="Rejected"
+                        name="review_rejected"
+                        domain="[('review_state', '=', 'rejected')]"
+                    />
+                    <separator />
+                    <filter
+                        string="Not Accounted"
+                        name="not_accounted"
+                        domain="[('invoice_id', '=', False)]"
+                    />
+                    <filter
+                        string="Accounted"
+                        name="accounted"
+                        domain="[('state', '=', 'done')]"
+                    />
+                    <separator />
                     <filter string="Date" name="date" date="date" />
                     <filter
                         string="Invoice Date"
                         name="invoice_date"
                         date="invoice_date"
+                    />
+                    <filter
+                        string="Due Date"
+                        name="invoice_date_due"
+                        date="invoice_date_due"
                     />
                 </group>
                 <group>
@@ -236,9 +351,19 @@
                         context="{'group_by': 'message_type'}"
                     />
                     <filter
-                        name="group_partner_id"
+                        name="group_partner_name"
                         string="Partner"
-                        context="{'group_by': 'partner_id'}"
+                        context="{'group_by': 'partner_name'}"
+                    />
+                    <filter
+                        name="group_review_state"
+                        string="Review"
+                        context="{'group_by': 'review_state'}"
+                    />
+                    <filter
+                        name="group_currency_id"
+                        string="Currency"
+                        context="{'group_by': 'currency_id'}"
                     />
                     <filter
                         name="group_company_id"
