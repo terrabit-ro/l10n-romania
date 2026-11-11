@@ -1,3 +1,10 @@
+## 19.0.2.10.1
+
+- Documentation only, no code change: the description states that this module
+  is not needed when `l10n_ro_stock_sheet` is used (or when the stock accounts
+  are determined through OBYC instead of `l10n_ro_stock_account`), and lists the
+  differences between the two reports.
+
 ## 19.0.2.9.0
 
 - Fix the "Toate locațiile" (all-locations) storage sheet report: the printed

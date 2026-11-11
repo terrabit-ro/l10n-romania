@@ -375,22 +375,43 @@ ul.auto-toc {
 !! source digest: sha256:6acc36a9fd6532c64e68c40d423b6b959fdd501a56b0c9cd42931ca3b58b2bda
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -->
 <p><a class="reference external image-reference" href="https://odoo-community.org/page/development-status"><img alt="Mature" src="https://img.shields.io/badge/maturity-Mature-brightgreen.png" /></a> <a class="reference external image-reference" href="http://www.gnu.org/licenses/agpl-3.0-standalone.html"><img alt="License: AGPL-3" src="https://img.shields.io/badge/license-AGPL--3-blue.png" /></a> <a class="reference external image-reference" href="https://github.com/OCA/l10n-romania/tree/19.0/l10n_ro_stock_report"><img alt="OCA/l10n-romania" src="https://img.shields.io/badge/github-OCA%2Fl10n--romania-lightgray.png?logo=github" /></a> <a class="reference external image-reference" href="https://translation.odoo-community.org/projects/l10n-romania-19-0/l10n-romania-19-0-l10n_ro_stock_report"><img alt="Translate me on Weblate" src="https://img.shields.io/badge/weblate-Translate%20me-F47D42.png" /></a> <a class="reference external image-reference" href="https://runboat.odoo-community.org/builds?repo=OCA/l10n-romania&amp;target_branch=19.0"><img alt="Try me on Runboat" src="https://img.shields.io/badge/runboat-Try%20me-875A7B.png" /></a></p>
-<p>This module adds a stock report according to Romanian requirements.</p>
+<p>This module adds a stock report according to Romanian requirements (the
+storage sheet, <em>Fișa de magazie</em>).</p>
+<p><strong>Not needed when ``l10n_ro_stock_sheet`` is used.</strong> The report is built
+on the fields added by <tt class="docutils literal">l10n_ro_stock_account</tt> (<tt class="docutils literal">l10n_ro_move_type</tt>,
+<tt class="docutils literal">l10n_ro_account_id</tt>, <tt class="docutils literal">l10n_ro_transfer_account_id</tt>), so it works
+only together with that module. On a database that determines the stock
+accounts through OBYC (<tt class="docutils literal">deltatech_obyc</tt>) instead of
+<tt class="docutils literal">l10n_ro_stock_account</tt>, or that uses the storage sheet (14-3-8) and
+the analytical stock balance of <tt class="docutils literal">l10n_ro_stock_sheet</tt>
+(<tt class="docutils literal">l10n_ro_ent</tt>, native Odoo 19 valuation, no OCA dependency), this
+module is not needed and should not be installed.</p>
+<p>Differences to know before replacing it:</p>
+<ul class="simple">
+<li><tt class="docutils literal">l10n_ro_stock_sheet</tt> does not split the report by movement type
+(receipt, delivery, inventory plus/minus, consumption, transfer, …);
+it groups by stock account, product and document.</li>
+<li>it has no filter by valuation area (by location only).</li>
+<li>for stock moves without an accounting entry (for example moves
+migrated from a previous version) the account is the one of the
+product category.</li>
+</ul>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
 <li><a class="reference internal" href="#installation" id="toc-entry-1">Installation</a></li>
 <li><a class="reference internal" href="#changelog" id="toc-entry-2">Changelog</a><ul>
-<li><a class="reference internal" href="#section-1" id="toc-entry-3">19.0.2.9.0</a></li>
-<li><a class="reference internal" href="#section-2" id="toc-entry-4">19.0.2.6.0</a></li>
-<li><a class="reference internal" href="#section-3" id="toc-entry-5">19.0.2.4.1</a></li>
+<li><a class="reference internal" href="#section-1" id="toc-entry-3">19.0.2.10.1</a></li>
+<li><a class="reference internal" href="#section-2" id="toc-entry-4">19.0.2.9.0</a></li>
+<li><a class="reference internal" href="#section-3" id="toc-entry-5">19.0.2.6.0</a></li>
+<li><a class="reference internal" href="#section-4" id="toc-entry-6">19.0.2.4.1</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-6">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-7">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-8">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-9">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-10">Maintainers</a></li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-7">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-8">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-9">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-10">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-11">Maintainers</a></li>
 </ul>
 </li>
 </ul>
@@ -410,7 +431,17 @@ ul.auto-toc {
 <div class="section" id="changelog">
 <h2><a class="toc-backref" href="#toc-entry-2">Changelog</a></h2>
 <div class="section" id="section-1">
-<h3><a class="toc-backref" href="#toc-entry-3">19.0.2.9.0</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-3">19.0.2.10.1</a></h3>
+<ul class="simple">
+<li>Documentation only, no code change: the description states that this
+module is not needed when <tt class="docutils literal">l10n_ro_stock_sheet</tt> is used (or when the
+stock accounts are determined through OBYC instead of
+<tt class="docutils literal">l10n_ro_stock_account</tt>), and lists the differences between the two
+reports.</li>
+</ul>
+</div>
+<div class="section" id="section-2">
+<h3><a class="toc-backref" href="#toc-entry-4">19.0.2.9.0</a></h3>
 <ul class="simple">
 <li>Fix the “Toate locațiile” (all-locations) storage sheet report: the
 printed FINAL row recomputed a running total from the individual
@@ -432,8 +463,8 @@ detail and final queries. The single-product report
 final line separately.</li>
 </ul>
 </div>
-<div class="section" id="section-2">
-<h3><a class="toc-backref" href="#toc-entry-4">19.0.2.6.0</a></h3>
+<div class="section" id="section-3">
+<h3><a class="toc-backref" href="#toc-entry-5">19.0.2.6.0</a></h3>
 <ul class="simple">
 <li>Give the opening and closing balance rows a valued type of their own,
 <tt class="docutils literal">initial</tt> and <tt class="docutils literal">final</tt>. This changes the behaviour deliberately
@@ -451,8 +482,8 @@ against it. Typing the balances keeps them legible as balances and
 leaves the empty-type bucket to mean only what it says.</li>
 </ul>
 </div>
-<div class="section" id="section-3">
-<h3><a class="toc-backref" href="#toc-entry-5">19.0.2.4.1</a></h3>
+<div class="section" id="section-4">
+<h3><a class="toc-backref" href="#toc-entry-6">19.0.2.4.1</a></h3>
 <ul class="simple">
 <li>Fix the storage sheet no longer splitting by valued type. Up to 18.0
 the valued type of a line came from the valuation layer
@@ -468,7 +499,7 @@ type, as in 18.0, since a balance aggregates several move types.</li>
 </div>
 </div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-6">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-7">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/l10n-romania/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -476,16 +507,16 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-7">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-8">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-8">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-9">Authors</a></h3>
 <ul class="simple">
 <li>Terrabit</li>
 <li>NextERP Romania</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-9">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-10">Contributors</a></h3>
 <ul class="simple">
 <li><a class="reference external" href="https://www.terrabit.ro">Terrabit</a>:<ul>
 <li>Dorin Hongu &lt;<a class="reference external" href="mailto:dhongu&#64;gmail.com">dhongu&#64;gmail.com</a>&gt;</li>
@@ -502,7 +533,7 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 technical issues.</p>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-10">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-11">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />
