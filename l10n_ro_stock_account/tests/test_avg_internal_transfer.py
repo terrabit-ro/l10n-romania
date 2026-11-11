@@ -168,3 +168,27 @@ class TestAVGInternalTransfer(TestROStockCommon):
             == self.location1.l10n_ro_property_stock_valuation_account_id
         )
         self.assertAlmostEqual(sum(source_lines.mapped("balance")), -move.value, 2)
+
+    def test_internal_transfer_counterpart_is_destination_stock_account(self):
+        """With ``l10n_ro_stock_account_change`` set the transfer still ends in
+        the stock account of the destination location.
+
+        The per-location expense account of the source (607) overwrote the
+        counterpart, so each transfer posted Dr 482 / Cr 371.src and
+        Dr 607.src / Cr 482 instead of Dr 371.dest / Cr 482.
+        """
+        self.assertTrue(self.category_marfa_avg.l10n_ro_stock_account_change)
+        expense_src = self.location1.l10n_ro_property_account_expense_location_id
+        self.assertTrue(expense_src)
+        self._receive(self.location1, 10.0, 40.0)
+
+        move = self._transfer(self.location1, self.location2, 4.0)
+
+        self.assertEqual(move.l10n_ro_move_type, "internal_transfer")
+        lines = move.account_move_id.line_ids
+        self.assertFalse(lines.filtered(lambda line: line.account_id == expense_src))
+        dest_lines = lines.filtered(
+            lambda line: line.account_id
+            == self.location2.l10n_ro_property_stock_valuation_account_id
+        )
+        self.assertAlmostEqual(sum(dest_lines.mapped("balance")), move.value)
