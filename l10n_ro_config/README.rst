@@ -102,6 +102,21 @@ Bank Accounts
 Changelog
 =========
 
+19.0.0.10.1
+-----------
+
+- Stop copying the trade register number (``nrc``, e.g.
+  ``J2010000026229``) into the standard ``company_registry`` field.
+  Odoo's own ``l10n_ro`` keeps the CUI there (computed from the VAT
+  number) and the trade register number in ``nrc``; this module had
+  reversed that. Everything that reads ``company_registry`` expects the
+  CUI: the SAF-T D406 export wrote ``CustomerID`` as
+  ``00J2010000026229``, which the ANAF validator rejects, and Facturx
+  and e-Factura sent the J number as the company identifier. Romanian
+  reports keep reading ``nrc`` and are not affected. A migration
+  restores the CUI on existing partners that have both a VAT number and
+  an ``nrc`` and whose ``company_registry`` was equal to the ``nrc``.
+
 19.0.0.9.1
 ----------
 
