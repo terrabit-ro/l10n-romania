@@ -19,6 +19,13 @@ session = requests.Session()
 RECEIVED_TYPES = ("in_invoice", "in_receipt")
 
 
+def _is_placeholder_partner_name(name):
+    """Names given by earlier versions of this module to the partners they
+    created for an unknown CIF: "Unknown", or the CIF itself."""
+    name = (name or "").strip()
+    return name == "Unknown" or bool(re.fullmatch(r"(RO)?\d+", name, re.IGNORECASE))
+
+
 def _cif_variants(cif):
     """The CIF with and without the "RO" prefix: ANAF and the partners in
     Odoo do not always use the same spelling."""
@@ -405,15 +412,16 @@ class MessageSPV(models.Model):
         being read and checked. The partner is created later, from the XML,
         when the bill is created.
 
-        A partner named "Unknown" was created by earlier versions of this
-        module for every unknown CIF; it takes the real name from the XML."""
+        Earlier versions of this module created a partner for every unknown
+        CIF, named "Unknown" or after the CIF; it takes the real name from
+        the XML."""
         for message in self:
             if not message.partner_id and message.cif:
                 partner = message.company_id._l10n_ro_get_partner_from_cif(message.cif)
                 if partner:
                     message.partner_id = partner
             if (
-                message.partner_id.name == "Unknown"
+                _is_placeholder_partner_name(message.partner_id.name)
                 and message.partner_name
                 and message.partner_id.vat
                 and message.partner_id.vat.upper() in _cif_variants(message.cif)

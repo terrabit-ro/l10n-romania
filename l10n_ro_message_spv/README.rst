@@ -226,6 +226,19 @@ In **Accounting → Configuration → Settings → e-Factura**:
 Changelog
 =========
 
+**20.0.2.17.1 (2026-11-21)**
+
+- The SPV messages received before 20.0.2.17.0 now show their partner
+  too. At upgrade, a message linked to a real partner takes its name. A
+  message with no partner, or with a partner created by earlier versions
+  for an unknown CIF ("Unknown" or named after the CIF), re-reads its
+  invoice XML from the stored ZIP: it gets the partner name, the due
+  date and the amounts, and that partner takes the real name from the
+  XML. Messages whose ZIP was never downloaded fill in when it is
+  downloaded.
+- A partner named after its CIF, created by the former
+  ``get_partner()``, is renamed from the XML like the "Unknown" ones.
+
 **20.0.2.17.0 (2026-11-21)**
 
 - The invoice XML is read in full: besides number, date, currency and
