@@ -604,6 +604,19 @@ as To Review and a bill can be created only from an accepted invoice.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>19.0.2.16.1 (2026-11-13)</strong></p>
+<ul class="simple">
+<li>The SPV messages received before 19.0.2.16.0 now show their partner
+too. At upgrade, a message linked to a real partner takes its name. A
+message with no partner, or with a partner created by earlier versions
+for an unknown CIF (“Unknown” or named after the CIF), re-reads its
+invoice XML from the stored ZIP: it gets the partner name, the due
+date and the amounts, and that partner takes the real name from the
+XML. Messages whose ZIP was never downloaded fill in when it is
+downloaded.</li>
+<li>A partner named after its CIF, created by the former
+<tt class="docutils literal">get_partner()</tt>, is renamed from the XML like the “Unknown” ones.</li>
+</ul>
 <p><strong>19.0.2.16.0 (2026-11-10)</strong></p>
 <ul class="simple">
 <li>The invoice XML is read in full: besides number, date, currency and
