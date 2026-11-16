@@ -1,3 +1,12 @@
+**20.0.2.16.0 (2026-10-24)**
+
+- The Refresh, Download, Get Invoice and Create Invoice buttons are shown
+  only to accounting users. A read-only user saw them, and Refresh failed
+  with an access error, because the synchronization deletes and creates
+  messages.
+- "No XML found in the downloaded ZIP." in the message's Error field is
+  now translated.
+
 **20.0.2.15.0 (2026-10-20)**
 
 - The last synchronization error is no longer shown in the e-Factura
