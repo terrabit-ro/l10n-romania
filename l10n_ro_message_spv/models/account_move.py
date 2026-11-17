@@ -86,7 +86,15 @@ class AccountMove(models.Model):
             and m.state in ("draft", "cancel")
         )
         spv_moves.l10n_ro_edi_document_ids.sudo().unlink()
-        return super().unlink()
+        res = super().unlink()
+        # Mesajele rămân (sunt dovada primită de la ANAF), dar nu mai au
+        # factură: revin la starea dinaintea legării și își reiau partenerul
+        # după CIF, ca să nu păstreze starea „Factură", suma și partenerul
+        # unei facturi care nu mai există.
+        message_spv_ids = message_spv_ids.sudo().exists()
+        message_spv_ids.invalidate_recordset(["invoice_id"])
+        message_spv_ids._l10n_ro_reset_removed_invoice()
+        return res
 
     # def _get_edi_decoder(self, file_data, new=False):
     #

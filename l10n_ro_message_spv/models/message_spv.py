@@ -266,6 +266,33 @@ class MessageSPV(models.Model):
             stale.write({"partner_id": False})
         return stale
 
+    def _l10n_ro_reset_removed_invoice(self):
+        """Readuce mesajele rămase fără factură la starea dinaintea legării.
+
+        Când factura legată este ștearsă sau dezlegată, mesajul nu mai poate
+        arăta „Factură"/„Finalizat" și nici suma sau partenerul acelei
+        facturi: revine la „Descărcat" (dacă are arhiva ZIP) sau la „Ciornă"
+        (dacă arhiva nu a fost încă descărcată) și își reia partenerul după
+        CIF. Nu se creează și nu se modifică nicio factură."""
+        orphans = self.filtered(
+            lambda m: not m.invoice_id
+            and (m.state in ("invoice", "done") or m.invoice_amount)
+        )
+        for message in orphans:
+            values = {"invoice_amount": False}
+            if message.state in ("invoice", "done"):
+                values["state"] = "downloaded" if message.attachment_id else "draft"
+            message.write(values)
+        orphans.get_partner()
+        return orphans
+
+    def write(self, vals):
+        res = super().write(vals)
+        # Factura a fost scoasă de pe mesaj (din formular sau din cod).
+        if "invoice_id" in vals and not vals["invoice_id"]:
+            self._l10n_ro_reset_removed_invoice()
+        return res
+
     @api.depends("invoice_id", "request_id")
     def _compute_derived_attachments(self):
         attachment_obj = self.env["ir.attachment"].sudo()
@@ -644,6 +671,10 @@ class MessageSPV(models.Model):
         return bool(partner) and partner == self.partner_id.commercial_partner_id
 
     def get_invoice_from_move(self):
+        # Mesajele a căror factură a dispărut înainte de această versiune au
+        # rămas în starea „Factură", cu suma și partenerul ei: se repară aici,
+        # la prima căutare a facturii.
+        self._l10n_ro_reset_removed_invoice()
         self.get_partner()
 
         messages_with_error = self.filtered(lambda m: m.message_type == "error")

@@ -604,6 +604,17 @@ as To Review and a bill can be created only from an accepted invoice.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>19.0.2.16.4 (2026-11-17)</strong></p>
+<ul class="simple">
+<li>When the invoice linked to an SPV message is deleted, or removed from
+the message, the message goes back to where it was before the link:
+<em>Downloaded</em> (or <em>Draft</em>, when its ZIP was never downloaded) instead
+of staying <em>Invoice</em> / <em>Done</em>, without the amount of that invoice, and
+with the partner found by its own CIF. The signed ZIP stays on the
+message, and no invoice is created or changed.</li>
+<li>Messages left without their invoice by earlier versions are put right
+the first time <em>Get Invoice</em> is used on them.</li>
+</ul>
 <p><strong>19.0.2.16.3 (2026-11-17)</strong></p>
 <ul class="simple">
 <li>A CIF conflict is now shown on the SPV message: when its partner, or

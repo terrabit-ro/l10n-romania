@@ -1,3 +1,14 @@
+**19.0.2.16.4 (2026-11-17)**
+
+- When the invoice linked to an SPV message is deleted, or removed from
+  the message, the message goes back to where it was before the link:
+  *Downloaded* (or *Draft*, when its ZIP was never downloaded) instead of
+  staying *Invoice* / *Done*, without the amount of that invoice, and
+  with the partner found by its own CIF. The signed ZIP stays on the
+  message, and no invoice is created or changed.
+- Messages left without their invoice by earlier versions are put right
+  the first time *Get Invoice* is used on them.
+
 **19.0.2.16.3 (2026-11-17)**
 
 - A CIF conflict is now shown on the SPV message: when its partner, or the

@@ -1,6 +1,9 @@
 # Copyright (C) 2026 Terrabit
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
 
+import io
+import zipfile
+
 from odoo.tests import tagged
 
 from ..models.message_spv import _normalize_cif
@@ -38,6 +41,22 @@ class TestMessageSPVPartner(TestMessageSPV):
         }
         values.update(extra)
         return self.env["l10n.ro.message.spv"].create(values)
+
+    def _create_message_zip(self, name, cif, xml_bytes, **extra):
+        """Mesaj cu arhiva ZIP de la ANAF deja descărcată."""
+        message = self._create_message(name, cif, **extra)
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zip_file:
+            zip_file.writestr(f"{message.request_id}.xml", xml_bytes)
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": f"{message.request_id}.zip",
+                "raw": buffer.getvalue(),
+                "mimetype": "application/zip",
+            }
+        )
+        message.write({"attachment_id": attachment.id, "state": "downloaded"})
+        return message
 
     def _create_invoice(self, partner, move_type="in_invoice", **extra):
         values = {
@@ -277,4 +296,100 @@ class TestMessageSPVPartner(TestMessageSPV):
         message.invoice_id = bill_a
         self.assertFalse(message._onchange_invoice_id())
         self.assertEqual(message.partner_id, self.supplier_a)
+        self.assertFalse(message.cif_conflict)
+
+    # ------------------------------------------------------------------
+    # Factura legată dispare
+    # ------------------------------------------------------------------
+
+    def test_message_reset_when_invoice_deleted(self):
+        """Ștergerea facturii legate readuce mesajul la starea dinaintea
+        legării: fără suma facturii, „Descărcat" dacă are ZIP-ul, „Ciornă"
+        dacă nu îl are."""
+        xml = b"<Invoice><ID>DEL1</ID></Invoice>"
+        with_zip = self._create_message_zip("MSG_Z1", "1001", xml, ref="DEL1")
+        without_zip = self._create_message("MSG_Z2", "1001", ref="DEL2")
+        bills = self.env["account.move"]
+        for message, ref in ((with_zip, "DEL1"), (without_zip, "DEL2")):
+            bill = self._create_invoice(
+                self.supplier_a, ref=ref, l10n_ro_edi_download=message.name
+            )
+            message.get_invoice_from_move()
+            self.assertEqual(message.invoice_id, bill)
+            self.assertEqual(message.state, "invoice")
+            self.assertEqual(message.invoice_amount, bill.amount_total)
+            bills |= bill
+
+        bills.unlink()
+
+        for message, state in ((with_zip, "downloaded"), (without_zip, "draft")):
+            self.assertFalse(message.invoice_id)
+            self.assertEqual(message.state, state)
+            self.assertFalse(message.invoice_amount)
+            self.assertEqual(message.partner_id, self.supplier_a)
+        # arhiva ZIP semnată rămâne pe mesaj
+        self.assertTrue(with_zip.attachment_id.exists())
+
+    def test_message_reset_when_invoice_unlinked(self):
+        """Scoaterea facturii de pe mesaj (din formular) are același efect,
+        iar factura rămâne neatinsă."""
+        bill = self._create_invoice(
+            self.supplier_a, ref="UNL1", l10n_ro_edi_download="MSG_U"
+        )
+        bill.action_post()
+        message = self._create_message("MSG_U", "1001", ref="UNL1")
+        message.get_invoice_from_move()
+        self.assertEqual(message.state, "done")
+
+        message.write({"invoice_id": False})
+
+        self.assertEqual(message.state, "draft")
+        self.assertFalse(message.invoice_amount)
+        self.assertEqual(bill.state, "posted")
+
+    def test_wrong_invoice_deleted_restores_partner(self):
+        """Cazul semnalat: mesajul a rămas legat de factura altui
+        furnizor și i-a preluat partenerul; după ștergerea facturii își reia
+        partenerul după CIF și nu mai arată că ar avea factură."""
+        bill = self._create_invoice(self.supplier_a, ref="WRG1")
+        message = self._create_message("MSG_W", "1002", ref="NR100")
+        # starea lăsată de versiunile anterioare
+        message.write(
+            {
+                "invoice_id": bill.id,
+                "partner_id": self.supplier_a.id,
+                "invoice_amount": bill.amount_total,
+                "state": "invoice",
+            }
+        )
+
+        bill.unlink()
+
+        self.assertFalse(message.invoice_id)
+        self.assertEqual(message.partner_id, self.supplier_b)
+        self.assertEqual(message.state, "draft")
+        self.assertFalse(message.invoice_amount)
+        self.assertFalse(message.cif_conflict)
+
+    def test_get_invoice_repairs_message_left_without_invoice(self):
+        """Mesajele rămase fără factură înainte de această versiune (stare
+        „Factură", suma și partenerul altui furnizor) se repară la „Get
+        Invoice", fără să fie legate de altceva."""
+        message = self._create_message("MSG_OLD", "1002", ref="NR100")
+        message.flush_recordset()
+        self.env.cr.execute(
+            "UPDATE l10n_ro_message_spv SET state = 'invoice', "
+            "invoice_amount = 100, partner_id = %s WHERE id = %s",
+            (self.supplier_a.id, message.id),
+        )
+        message.invalidate_recordset()
+        self.assertEqual(message.state, "invoice")
+        self.assertTrue(message.cif_conflict)
+
+        message.get_invoice_from_move()
+
+        self.assertFalse(message.invoice_id)
+        self.assertEqual(message.state, "draft")
+        self.assertFalse(message.invoice_amount)
+        self.assertEqual(message.partner_id, self.supplier_b)
         self.assertFalse(message.cif_conflict)
