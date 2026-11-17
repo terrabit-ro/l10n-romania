@@ -174,3 +174,107 @@ class TestMessageSPVPartner(TestMessageSPV):
         self.assertEqual(sent.invoice_id, invoice)
         self.assertEqual(sent.partner_id, self.customer)
         self.assertEqual(sent.state, "done")
+
+    # ------------------------------------------------------------------
+    # Conflict de CIF între mesaj, partener și factură
+    # ------------------------------------------------------------------
+
+    def test_cif_conflict_shown_on_linked_invoice(self):
+        """Factura găsită după identificatorul ANAF aparține altui partener:
+        legătura rămâne, conflictul este afișat, mesajul nu preia partenerul
+        străin, iar factura nu este modificată."""
+        bill = self._create_invoice(
+            self.supplier_b, ref="X1", l10n_ro_edi_download="MSG_K"
+        )
+        message = self._create_message(
+            "MSG_K", "1001", ref="X1", partner_id=self.supplier_a.id
+        )
+        self.assertFalse(message.cif_conflict)
+
+        message.get_invoice_from_move()
+
+        self.assertEqual(message.invoice_id, bill)
+        self.assertTrue(message.cif_conflict)
+        self.assertEqual(message.partner_id, self.supplier_a)
+        self.assertEqual(bill.partner_id, self.supplier_b)
+
+    def test_partner_follows_invoice_with_same_cif(self):
+        """Factura este pe altă fișă a aceleiași firme: mesajul preia fișa
+        de pe factură, fără conflict."""
+        duplicate = self.env["res.partner"].create(
+            {"name": "Furnizor A (dublură)", "vat": "1001", "is_company": True}
+        )
+        bill = self._create_invoice(duplicate, ref="X2", l10n_ro_edi_download="MSG_L")
+        message = self._create_message(
+            "MSG_L", "1001", ref="X2", partner_id=self.supplier_a.id
+        )
+
+        message.get_invoice_from_move()
+
+        self.assertEqual(message.invoice_id, bill)
+        self.assertEqual(message.partner_id, duplicate)
+        self.assertFalse(message.cif_conflict)
+
+    def test_stale_partner_replaced_by_cif(self):
+        """Mesaj fără factură, rămas cu partenerul altui CIF: partenerul se
+        reface după CIF-ul primit de la ANAF."""
+        message = self._create_message("MSG_S", "1002", partner_id=self.supplier_a.id)
+        self.assertTrue(message.cif_conflict)
+
+        message.get_partner()
+
+        self.assertEqual(message.partner_id, self.supplier_b)
+        self.assertFalse(message.cif_conflict)
+
+        # CIF necunoscut în Odoo: partenerul străin se scoate și nu se
+        # creează altul în loc.
+        unknown = self._create_message("MSG_S2", "9999", partner_id=self.supplier_a.id)
+        partner_count = self.env["res.partner"].search_count([])
+        unknown.get_partner()
+        self.assertFalse(unknown.partner_id)
+        self.assertFalse(unknown.cif_conflict)
+        self.assertEqual(self.env["res.partner"].search_count([]), partner_count)
+
+    def test_no_conflict_without_comparable_cif(self):
+        """Fără două CIF-uri de comparat nu există conflict și nu se schimbă
+        nimic: partener fără CIF, mesaj fără CIF, mesaj de alt tip."""
+        no_vat = self.env["res.partner"].create(
+            {"name": "Fără CIF", "is_company": True}
+        )
+        messages = (
+            self._create_message("MSG_N1", "1001", partner_id=no_vat.id)
+            | self._create_message("MSG_N2", False, partner_id=self.supplier_a.id)
+            | self._create_message(
+                "MSG_N3",
+                "1002",
+                partner_id=self.supplier_a.id,
+                message_type="message",
+            )
+        )
+        partners = messages.mapped("partner_id")
+
+        messages.get_partner()
+
+        self.assertFalse(any(messages.mapped("cif_conflict")))
+        self.assertEqual(messages.mapped("partner_id"), partners)
+        self.assertEqual(messages[0].partner_id, no_vat)
+
+    def test_onchange_invoice_warns_on_cif_conflict(self):
+        """Legarea manuală a unei facturi cu alt CIF: avertizare, iar mesajul
+        nu preia partenerul facturii."""
+        bill_b = self._create_invoice(self.supplier_b)
+        bill_a = self._create_invoice(self.supplier_a)
+        message = self._create_message("MSG_O", "1001", partner_id=self.supplier_a.id)
+
+        message.invoice_id = bill_b
+        result = message._onchange_invoice_id()
+
+        self.assertIn("1002", result["warning"]["message"])
+        self.assertEqual(message.partner_id, self.supplier_a)
+        self.assertEqual(message.invoice_amount, bill_b.amount_total)
+        self.assertTrue(message.cif_conflict)
+
+        message.invoice_id = bill_a
+        self.assertFalse(message._onchange_invoice_id())
+        self.assertEqual(message.partner_id, self.supplier_a)
+        self.assertFalse(message.cif_conflict)

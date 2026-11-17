@@ -18,6 +18,10 @@ session = requests.Session()
 
 RECEIVED_TYPES = ("in_invoice", "in_receipt")
 SENT_TYPES = ("out_invoice", "out_receipt")
+# Tipurile de mesaj la care `cif` este CIF-ul partenerului (furnizorul la
+# facturile primite, clientul la cele trimise). La mesajele de tip eroare sau
+# informare `cif` nu identifică partenerul, deci nu se compară cu nimic.
+PARTNER_CIF_TYPES = RECEIVED_TYPES + SENT_TYPES
 
 
 def _normalize_cif(value):
@@ -83,6 +87,15 @@ class MessageSPV(models.Model):
     # clientul la cele trimise): se vede și când partenerul nu există în Odoo,
     # fără să fie creat la simpla preluare a mesajului.
     partner_name = fields.Char()
+    # Semnalează o asociere incompatibilă: partenerul mesajului sau cel al
+    # facturii legate are alt CIF decât cel primit de la ANAF. Câmpul doar
+    # afișează conflictul; nu modifică nici mesajul, nici factura.
+    cif_conflict = fields.Boolean(
+        string="CIF Conflict",
+        compute="_compute_cif_conflict",
+        help="The partner or the linked invoice has a different CIF than the "
+        "one received from ANAF in this message.",
+    )
     invoice_date_due = fields.Date(string="Due Date")
 
     # draft - starea initiala a mesajului descarcat din SPV
@@ -164,15 +177,94 @@ class MessageSPV(models.Model):
 
     @api.onchange("invoice_id")
     def _onchange_invoice_id(self):
+        warning = False
         for message in self:
             if message.invoice_id:
                 if message.invoice_id.move_type in ("in_refund", "out_refund"):
                     message.invoice_amount = -1 * message.invoice_id.amount_total
                 else:
                     message.invoice_amount = message.invoice_id.amount_total
-                message.partner_id = message.invoice_id.commercial_partner_id
+                message.partner_id = message._l10n_ro_partner_from_invoice()
                 if message.invoice_id.state == "posted":
                     message.state = "done"
+                # Legarea manuală rămâne permisă (utilizatorul decide), dar o
+                # factură a unui partener cu alt CIF este semnalată pe loc.
+                invoice_partner = message.invoice_id.commercial_partner_id
+                if message._l10n_ro_cif_conflicts_with(invoice_partner):
+                    warning = {
+                        "title": self.env._("CIF conflict"),
+                        "message": self.env._(
+                            "The invoice belongs to %(partner)s (CIF "
+                            "%(partner_cif)s), but this SPV message was issued "
+                            "for CIF %(message_cif)s. Check that this is the "
+                            "right invoice.",
+                            partner=invoice_partner.display_name,
+                            partner_cif=invoice_partner.vat,
+                            message_cif=message.cif,
+                        ),
+                    }
+        if warning:
+            return {"warning": warning}
+
+    @api.depends(
+        "cif",
+        "message_type",
+        "partner_id.vat",
+        "invoice_id.commercial_partner_id.vat",
+    )
+    def _compute_cif_conflict(self):
+        # sudo: conflictul trebuie văzut și de utilizatorul care nu are acces
+        # la factura legată (de exemplu drept doar de citire pe mesaje).
+        for message in self.sudo():
+            partners = message.partner_id | message.invoice_id.commercial_partner_id
+            message.cif_conflict = any(
+                message._l10n_ro_cif_conflicts_with(partner) for partner in partners
+            )
+
+    def _l10n_ro_cif_conflicts_with(self, partner):
+        """True când partenerul are un CIF cunoscut, diferit de cel din mesaj.
+
+        Conflictul există doar dacă ambele CIF-uri sunt cunoscute: un
+        partener fără CIF în Odoo nu poate fi declarat incompatibil. Două
+        fișe diferite ale aceleiași firme (același CIF) nu sunt în conflict."""
+        self.ensure_one()
+        if self.message_type not in PARTNER_CIF_TYPES or not partner:
+            return False
+        message_cif = _normalize_cif(self.cif)
+        partner_cif = _normalize_cif(partner.sudo().commercial_partner_id.vat)
+        return bool(message_cif and partner_cif and message_cif != partner_cif)
+
+    def _l10n_ro_partner_from_invoice(self):
+        """Partenerul pe care mesajul îl preia de pe factura legată.
+
+        Mesajul urmează partenerul facturii (fișa aleasă de utilizator sau
+        creată de importul UBL), cu o excepție: dacă acel partener are alt CIF
+        decât cel primit de la ANAF, mesajul își păstrează partenerul propriu.
+        Altfel o factură legată greșit ar lăsa pe mesaj un partener străin,
+        care rămâne acolo și după ce factura este ștearsă. Factura nu se
+        modifică; conflictul este doar afișat (`cif_conflict`)."""
+        self.ensure_one()
+        partner = self.invoice_id.commercial_partner_id
+        if not partner or self._l10n_ro_cif_conflicts_with(partner):
+            return self.partner_id
+        return partner
+
+    def _l10n_ro_drop_stale_partner(self):
+        """Scoate partenerul cu alt CIF de pe mesajele fără factură.
+
+        Un astfel de partener a rămas de la o factură care nu mai este legată
+        (ștearsă sau dezlegată). Fără factură nu mai există niciun motiv
+        pentru el, iar CIF-ul primit de la ANAF este singura sursă sigură:
+        partenerul se caută din nou după CIF. Mesajele cu factură legată nu
+        se ating aici; la ele conflictul este doar afișat."""
+        stale = self.filtered(
+            lambda m: m.partner_id
+            and not m.invoice_id
+            and m._l10n_ro_cif_conflicts_with(m.partner_id)
+        )
+        if stale:
+            stale.write({"partner_id": False})
+        return stale
 
     @api.depends("invoice_id", "request_id")
     def _compute_derived_attachments(self):
@@ -427,6 +519,7 @@ class MessageSPV(models.Model):
         Earlier versions of this module created a partner for every unknown
         CIF, named "Unknown" or after the CIF; it takes the real name from
         the XML."""
+        self._l10n_ro_drop_stale_partner()
         for message in self:
             if not message.partner_id and message.cif:
                 partner = message.company_id._l10n_ro_get_partner_from_cif(message.cif)
@@ -655,8 +748,7 @@ class MessageSPV(models.Model):
 
             message.write(
                 {
-                    "partner_id": message.invoice_id.commercial_partner_id.id
-                    or message.partner_id.id,
+                    "partner_id": message._l10n_ro_partner_from_invoice().id,
                     "invoice_amount": invoice_amount,
                     "state": state,
                     "invoice_date": message.invoice_id.invoice_date,
@@ -824,14 +916,10 @@ class MessageSPV(models.Model):
 
             # The supplier unknown until now was created by the UBL import,
             # from the name and CIF in the XML.
-            message.write(
-                {
-                    "invoice_id": new_invoice.id,
-                    "state": state,
-                    "partner_id": new_invoice.commercial_partner_id.id
-                    or message.partner_id.id,
-                }
-            )
+            message.write({"invoice_id": new_invoice.id, "state": state})
+            # Partenerul se preia după ce factura e legată: dacă importul a
+            # ales un partener cu alt CIF, mesajul îl păstrează pe al lui.
+            message.write({"partner_id": message._l10n_ro_partner_from_invoice().id})
 
     def _render_anaf_pdf_bytes(self, no_validate=None):
         """Convert the invoice XML to PDF via the ANAF webservice.
@@ -947,6 +1035,9 @@ class MessageSPV(models.Model):
         No partner is created: the name of an unknown supplier is shown from
         the XML (partner_name), and the partner itself is created from the
         XML only when the bill is created."""
+        # Un partener cu alt CIF, rămas pe un mesaj fără factură, se scoate
+        # și se caută din nou după CIF, ca la orice mesaj fără partener.
+        self._l10n_ro_drop_stale_partner()
         partner_obj = self.env["res.partner"]
         for message in self.filtered(lambda m: not m.partner_id):
             # The CIF may reach us with or without the "RO" prefix, while

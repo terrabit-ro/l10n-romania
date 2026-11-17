@@ -226,6 +226,19 @@ In **Accounting → Configuration → Settings → e-Factura**:
 Changelog
 =========
 
+**19.0.2.16.3 (2026-11-17)**
+
+- A CIF conflict is now shown on the SPV message: when its partner, or
+  the partner of the linked invoice, has a different CIF than the one
+  received from ANAF, the form shows a warning and the list marks the
+  row in red. Linking such an invoice by hand warns at once. Nothing is
+  changed on an invoice already linked.
+- The message no longer takes over the partner of an invoice with a
+  different CIF; it keeps the partner found by its own CIF. A partner
+  with a different CIF left on a message that has no invoice is replaced
+  by the partner found by CIF (or removed, when that CIF is not in
+  Odoo).
+
 **19.0.2.16.2 (2026-11-17)**
 
 - *Get Invoice* no longer links an SPV message to an unrelated invoice.

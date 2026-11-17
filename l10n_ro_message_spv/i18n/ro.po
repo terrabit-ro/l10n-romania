@@ -794,3 +794,45 @@ msgstr "Istoric comunicare website"
 #: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_reject_form
 msgid "Why is the invoice rejected?"
 msgstr "De ce este respinsă factura?"
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__cif_conflict
+msgid "CIF Conflict"
+msgstr "Conflict CIF"
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/message_spv.py:0
+msgid "CIF conflict"
+msgstr "Conflict de CIF"
+
+#. module: l10n_ro_message_spv
+#. odoo-python
+#: code:addons/l10n_ro_message_spv/models/message_spv.py:0
+msgid ""
+"The invoice belongs to %(partner)s (CIF %(partner_cif)s), but this SPV "
+"message was issued for CIF %(message_cif)s. Check that this is the right "
+"invoice."
+msgstr ""
+"Factura aparține partenerului %(partner)s (CIF %(partner_cif)s), dar acest "
+"mesaj SPV a fost emis pentru CIF-ul %(message_cif)s. Verificați dacă este "
+"factura corectă."
+
+#. module: l10n_ro_message_spv
+#: model_terms:ir.ui.view,arch_db:l10n_ro_message_spv.view_l10n_ro_message_spv_form
+msgid ""
+"The partner or the linked invoice has a different CIF than the one received "
+"from ANAF in this message. Check the partner and the invoice before going "
+"further."
+msgstr ""
+"Partenerul sau factura legată are alt CIF decât cel primit de la ANAF în "
+"acest mesaj. Verificați partenerul și factura înainte de a merge mai departe."
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_l10n_ro_message_spv__cif_conflict
+msgid ""
+"The partner or the linked invoice has a different CIF than the one received "
+"from ANAF in this message."
+msgstr ""
+"Partenerul sau factura legată are alt CIF decât cel primit de la ANAF în "
+"acest mesaj."

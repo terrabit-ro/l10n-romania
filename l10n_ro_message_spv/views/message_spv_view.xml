@@ -51,9 +51,14 @@
                 <field name="name" optional="hide" />
                 <field name="ref" />
                 <field name="message_type" optional="show" />
-                <field name="partner_name" />
-                <field name="cif" optional="show" />
-                <field name="partner_id" optional="hide" />
+                <field name="partner_name" decoration-danger="cif_conflict" />
+                <field name="cif" optional="show" decoration-danger="cif_conflict" />
+                <field
+                    name="partner_id"
+                    optional="hide"
+                    decoration-danger="cif_conflict"
+                />
+                <field name="cif_conflict" column_invisible="1" />
                 <field name="invoice_date" />
                 <field name="invoice_date_due" optional="show" />
                 <field name="date" optional="show" />
@@ -187,11 +192,19 @@
                         invisible="not review_required or review_state in (False, 'pending')"
                     />
                 </header>
+                <div
+                    class="alert alert-warning mb-0"
+                    role="alert"
+                    invisible="not cif_conflict"
+                >
+                    The partner or the linked invoice has a different CIF than the one received from ANAF in this message. Check the partner and the invoice before going further.
+                </div>
                 <sheet>
+                    <field name="cif_conflict" invisible="1" />
                     <group>
                         <group string="Message">
                             <field name="name" />
-                            <field name="cif" />
+                            <field name="cif" decoration-danger="cif_conflict" />
                             <field name="message_type" />
                             <field name="date" />
                             <field name="details" />
@@ -203,7 +216,7 @@
                                 groups="base.group_multi_company"
                             />
                             <field name="partner_name" />
-                            <field name="partner_id" />
+                            <field name="partner_id" decoration-danger="cif_conflict" />
                             <field name="ref" />
                             <field name="invoice_date" />
                             <field name="invoice_date_due" />
