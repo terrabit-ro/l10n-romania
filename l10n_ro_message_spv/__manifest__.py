@@ -18,7 +18,7 @@
     ],
     "license": "AGPL-3",
     "consultant_sheet": "full",
-    "version": "19.0.2.16.1",
+    "version": "19.0.2.16.2",
     "author": "Terrabit,Odoo Community Association (OCA)",
     "website": "https://github.com/OCA/l10n-romania",
     "installable": True,

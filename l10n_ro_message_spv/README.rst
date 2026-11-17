@@ -226,6 +226,17 @@ In **Accounting → Configuration → Settings → e-Factura**:
 Changelog
 =========
 
+**19.0.2.16.2 (2026-11-17)**
+
+- *Get Invoice* no longer links an SPV message to an unrelated invoice.
+  An empty value never matches: a message not downloaded yet (no
+  reference) used to be linked to any draft bill (no number) found for
+  another message of the same selection, and took its partner and
+  amount. Matching by document number now also needs the same direction
+  (a received invoice only matches a vendor bill, a sent one only a
+  customer invoice) and the same partner, compared by CIF. Matching by
+  the ANAF ids (download id, upload id) is unchanged.
+
 **19.0.2.16.1 (2026-11-13)**
 
 - The SPV messages received before 19.0.2.16.0 now show their partner
