@@ -17,6 +17,18 @@ _logger = logging.getLogger(__name__)
 session = requests.Session()
 
 RECEIVED_TYPES = ("in_invoice", "in_receipt")
+SENT_TYPES = ("out_invoice", "out_receipt")
+
+
+def _normalize_cif(value):
+    """CIF-ul adus la o formă comparabilă: litere mari, fără spații sau
+    semne, fără prefixul „RO" și fără zerourile din față.
+
+    ANAF trimite CIF-ul doar cu cifre, iar în Odoo partenerul îl poate avea
+    scris „RO123", „ro 123" sau „123": toate înseamnă același CIF. Un șir gol
+    înseamnă „CIF necunoscut", nu un CIF diferit."""
+    cif = re.sub(r"[^0-9A-Z]", "", (value or "").upper())
+    return re.sub(r"^RO", "", cif).lstrip("0")
 
 
 def _is_placeholder_partner_name(name):
@@ -484,6 +496,60 @@ class MessageSPV(models.Model):
             _logger.warning(f"Error while checking the Zipped XML file: {e}")
         return info_msg
 
+    def _l10n_ro_invoice_matches(self, invoice):
+        """True când factura este documentul din acest mesaj.
+
+        Identificatorii ANAF (id-ul de descărcare, id-ul de încărcare) sunt
+        unici, deci ajung singuri pentru potrivire. Numărul documentului nu
+        este unic: același număr poate fi pe factura altui furnizor sau pe o
+        factură a noastră de client. Potrivirea după număr se acceptă doar
+        pentru același partener (vezi `_l10n_ro_invoice_partner_matches`).
+
+        O valoare goală nu potrivește nimic. Fără această regulă, un mesaj
+        încă nedescărcat (fără referință) se potrivea cu orice factură ciornă
+        (fără număr) din același lot, pentru că se compara False cu False, și
+        prelua de pe ea partenerul și suma."""
+        self.ensure_one()
+        if self.name and invoice.l10n_ro_edi_download == self.name:
+            return True
+        if self.request_id and self.request_id in (
+            invoice.l10n_ro_edi_transaction,
+            invoice.l10n_ro_edi_index,
+        ):
+            return True
+        if not self.ref or self.ref not in (invoice.ref, invoice.name):
+            return False
+        return self._l10n_ro_invoice_partner_matches(invoice)
+
+    def _l10n_ro_invoice_partner_matches(self, invoice):
+        """True când factura are sensul și partenerul din mesaj.
+
+        Se folosește doar la potrivirea după numărul documentului:
+
+        - sensul: o factură primită se leagă doar de un document de achiziție,
+          una trimisă doar de un document de vânzare;
+        - partenerul: se compară CIF-ul din mesaj cu cel al partenerului
+          facturii, pentru că mesajul poate să nu aibă încă partener (un CIF
+          necunoscut nu mai creează partener la sincronizare), iar aceeași
+          firmă poate avea mai multe fișe. Dacă unul dintre CIF-uri lipsește,
+          se cere aceeași fișă de partener."""
+        self.ensure_one()
+        if self.message_type in RECEIVED_TYPES:
+            if not invoice.is_purchase_document(include_receipts=True):
+                return False
+        elif self.message_type in SENT_TYPES:
+            if not invoice.is_sale_document(include_receipts=True):
+                return False
+        else:
+            # La celelalte tipuri de mesaj `cif` nu este al partenerului.
+            return True
+        partner = invoice.commercial_partner_id
+        message_cif = _normalize_cif(self.cif)
+        partner_cif = _normalize_cif(partner.vat)
+        if message_cif and partner_cif:
+            return message_cif == partner_cif
+        return bool(partner) and partner == self.partner_id.commercial_partner_id
+
     def get_invoice_from_move(self):
         self.get_partner()
 
@@ -541,11 +607,7 @@ class MessageSPV(models.Model):
         invoices = invoices.filtered(lambda i: i.state != "cancel")
         for message in messages_without_invoice:
             invoice = invoices.filtered(
-                lambda i, m=message: i.l10n_ro_edi_download == m.name
-                or i.l10n_ro_edi_transaction == m.request_id
-                or i.l10n_ro_edi_index == m.request_id
-                or i.ref == m.ref
-                or i.name == m.ref
+                lambda i, m=message: m._l10n_ro_invoice_matches(i)
             )
             if not invoice and message.ref:
                 if message.message_type == "in_invoice":
