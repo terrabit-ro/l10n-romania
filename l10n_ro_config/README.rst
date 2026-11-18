@@ -102,6 +102,13 @@ Bank Accounts
 Changelog
 =========
 
+20.0.0.9.3
+----------
+
+- The module is no longer installed automatically with ``l10n_ro``: it
+  is installed only when a module depends on it or when it is installed
+  explicitly.
+
 20.0.0.9.2
 ----------
 
