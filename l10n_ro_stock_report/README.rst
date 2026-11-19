@@ -75,6 +75,14 @@ To install this module, you need to:
 Changelog
 =========
 
+19.0.2.10.2
+-----------
+
+- An internal transfer is shown on the stock account of each location:
+  the source on the account of the source, the destination on the
+  account of the destination. The sheet read the two accounts of the
+  move the other way round.
+
 19.0.2.10.1
 -----------
 

@@ -1,3 +1,12 @@
+## 19.0.1.17.0
+
+- The transfer account of a stock move (`l10n_ro_transfer_account_id`) is set
+  only on moves between two stock locations (internal or transit). It kept the
+  category stock account on any move whose own account was different, for
+  example a reception on a location with its own stock account, and the
+  storage sheet showed that reception on the category account. The migration
+  clears it on the existing moves.
+
 ## 19.0.1.16.0
 
 - Fix internal transfers posting on the expense account when the product
