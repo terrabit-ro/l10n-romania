@@ -500,3 +500,115 @@ class TestStockReport(TransactionCase):
         )
         self.assertIn("initial", selection)
         self.assertIn("final", selection)
+
+    def _sheet_lines(self, location, product, date_from, date_to):
+        wizard = Form(self.env["l10n.ro.stock.storage.sheet"])
+        wizard.location_id = location
+        wizard.product_ids = product
+        wizard.date_from = date_from.date()
+        wizard.date_to = date_to.date()
+        wizard = wizard.save()
+        wizard.button_show_sheet_pdf()
+        return self.env["l10n.ro.stock.storage.sheet.line"].search(
+            [
+                ("report_id", "=", wizard.id),
+                ("product_id", "=", product.id),
+                ("location_id", "=", location.id),
+            ]
+        )
+
+    def test_report_account_of_location(self):
+        """The stock card shows the stock account of the location.
+
+        A reception on a location with its own stock account is shown on that
+        account, not on the account of the category, and an internal transfer
+        leaves the source on the account of the source and enters the
+        destination on the account of the destination.
+        """
+        account_a = self.env["account.account"].create(
+            {
+                "code": "371210",
+                "name": "Goods location A",
+                "account_type": "asset_current",
+                "company_ids": [(4, self.env.company.id)],
+            }
+        )
+        account_b = self.env["account.account"].create(
+            {
+                "code": "302800",
+                "name": "Consumables location B",
+                "account_type": "asset_current",
+                "company_ids": [(4, self.env.company.id)],
+            }
+        )
+        account_transfer = self.env["account.account"].search(
+            [("code", "=like", "482%")], limit=1
+        ) or self.env["account.account"].create(
+            {
+                "code": "482000",
+                "name": "Settlements between subunits",
+                "account_type": "asset_current",
+                "company_ids": [(4, self.env.company.id)],
+            }
+        )
+        self.env.company.l10n_ro_property_stock_transfer_account_id = account_transfer
+        location_a = self.location
+        location_a.l10n_ro_property_stock_valuation_account_id = account_a
+        location_b = self.env["stock.location"].create(
+            {
+                "name": "Location B",
+                "usage": "internal",
+                "location_id": self.location.location_id.id,
+                "l10n_ro_property_stock_valuation_account_id": account_b.id,
+            }
+        )
+        product = self.product_1
+        date_dt = fields.Datetime.now() - timedelta(days=5)
+        date_from = fields.Datetime.now() - timedelta(days=10)
+        date_to = fields.Datetime.now() - timedelta(days=1)
+
+        receipt = self._create_receipt(product, 6, date_dt)
+        self.assertEqual(receipt.move_ids.l10n_ro_account_id, account_a)
+        self.assertFalse(receipt.move_ids.l10n_ro_transfer_account_id)
+
+        picking_type_int = self.env.ref("stock.picking_type_internal")
+        transfer = self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type_int.id,
+                "location_id": location_a.id,
+                "location_dest_id": location_b.id,
+            }
+        )
+        self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom": product.uom_id.id,
+                "product_uom_qty": 2,
+                "picking_id": transfer.id,
+                "location_id": location_a.id,
+                "location_dest_id": location_b.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        transfer.action_confirm()
+        transfer.button_validate()
+        transfer.move_ids.date = date_dt
+        self.assertEqual(transfer.move_ids.l10n_ro_move_type, "internal_transfer")
+        self.assertEqual(transfer.move_ids.l10n_ro_account_id, account_b)
+        self.assertEqual(transfer.move_ids.l10n_ro_transfer_account_id, account_a)
+
+        lines_a = self._sheet_lines(location_a, product, date_from, date_to)
+        self.assertEqual(lines_a.filtered("quantity_in").account_id, account_a)
+        self.assertEqual(lines_a.filtered("quantity_out").account_id, account_a)
+
+        lines_b = self._sheet_lines(location_b, product, date_from, date_to)
+        self.assertEqual(lines_b.filtered("quantity_in").account_id, account_b)
+        self.assertFalse(lines_b.filtered("quantity_out"))
+
+        # The balance carried to the next period stays on the same accounts.
+        later_from = fields.Datetime.now() - timedelta(days=1)
+        later_to = fields.Datetime.now()
+        balance_a = self._sheet_lines(location_a, product, later_from, later_to)
+        self.assertEqual(balance_a.filtered("quantity_initial").account_id, account_a)
+        balance_b = self._sheet_lines(location_b, product, later_from, later_to)
+        self.assertEqual(balance_b.filtered("quantity_initial").account_id, account_b)

@@ -30,6 +30,12 @@ VALUED_TYPE = MOVE_TYPE + BALANCE_TYPE + [("indefinite", "Indefinite")]
 # Movement rows take the valued type from the move; it is not an aggregate, so
 # it has to appear in the GROUP BY of the in/out queries as well.
 VALUED_TYPE_SQL = "COALESCE(sm.l10n_ro_move_type, 'indefinite')"
+# Account of the stock card line. On a move between two stock locations
+# l10n_ro_account_id is the account of the destination and
+# l10n_ro_transfer_account_id the account of the source; on any other move only
+# l10n_ro_account_id is set.
+IN_ACCOUNT_SQL = "COALESCE(sm.l10n_ro_account_id, sm.l10n_ro_transfer_account_id)"
+OUT_ACCOUNT_SQL = "COALESCE(sm.l10n_ro_transfer_account_id, sm.l10n_ro_account_id)"
 
 _logger = logging.getLogger(__name__)
 
@@ -292,8 +298,7 @@ class StorageSheet(models.TransientModel):
                 SELECT sm.product_id, pt.categ_id,
                        sm.value as amount,
                        sm.quantity as quantity,
-                       COALESCE(sm.l10n_ro_transfer_account_id,
-                                sm.l10n_ro_account_id) as account_id
+                       {IN_ACCOUNT_SQL} as account_id
                 from stock_move as sm
                     left join product_product prod on prod.id = sm.product_id
                     left join product_template pt on pt.id = prod.product_tmpl_id
@@ -308,7 +313,7 @@ class StorageSheet(models.TransientModel):
                 SELECT sm.product_id, pt.categ_id,
                        -sm.value as amount,
                        -sm.quantity as quantity,
-                       sm.l10n_ro_account_id as account_id
+                       {OUT_ACCOUNT_SQL} as account_id
                 from stock_move as sm
                     left join product_product prod on prod.id = sm.product_id
                     left join product_template pt on pt.id = prod.product_tmpl_id
@@ -351,8 +356,7 @@ class StorageSheet(models.TransientModel):
                 SELECT sm.product_id, pt.categ_id,
                        sm.value as amount,
                        sm.quantity as quantity,
-                       COALESCE(sm.l10n_ro_transfer_account_id,
-                                sm.l10n_ro_account_id) as account_id
+                       {IN_ACCOUNT_SQL} as account_id
                 from stock_move as sm
                     left join product_product prod on prod.id = sm.product_id
                     left join product_template pt on pt.id = prod.product_tmpl_id
@@ -367,7 +371,7 @@ class StorageSheet(models.TransientModel):
                 SELECT sm.product_id, pt.categ_id,
                        -sm.value as amount,
                        -sm.quantity as quantity,
-                       sm.l10n_ro_account_id as account_id
+                       {OUT_ACCOUNT_SQL} as account_id
                 from stock_move as sm
                     left join product_product prod on prod.id = sm.product_id
                     left join product_template pt on pt.id = prod.product_tmpl_id
@@ -403,8 +407,7 @@ class StorageSheet(models.TransientModel):
                     THEN COALESCE(sum(sm.value),0) / NULLIF(sum(sm.quantity),0)
                 ELSE 0
             END as unit_price_in,
-            COALESCE(sm.l10n_ro_transfer_account_id,
-                     sm.l10n_ro_account_id) as account_id,
+            {IN_ACCOUNT_SQL} as account_id,
             NULL::int as invoice_id,
             sm.date as date_time,
             date_trunc('day', sm.date at time zone 'utc' at time zone %(tz)s) as date,
@@ -458,8 +461,7 @@ class StorageSheet(models.TransientModel):
                     THEN COALESCE(sum(sm.value),0) / NULLIF(sum(sm.quantity),0)
                 ELSE 0
             END as unit_price_out,
-            COALESCE(sm.l10n_ro_account_id,
-                     sm.l10n_ro_transfer_account_id) as account_id,
+            {OUT_ACCOUNT_SQL} as account_id,
             NULL::int as invoice_id,
             sm.date as date_time,
             date_trunc('day', sm.date at time zone 'utc' at time zone %(tz)s) as date,

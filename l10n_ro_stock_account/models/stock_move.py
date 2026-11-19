@@ -134,9 +134,20 @@ class StockMove(models.Model):
                         loc_src.l10n_ro_property_stock_valuation_account_id
                     )
 
+            # The transfer account is the stock account of the source location of a
+            # move between stock locations (internal or transit). A reception, a
+            # delivery, a consumption or an inventory has a single stock account,
+            # so the category account must not be kept here: the storage sheet
+            # would read it before l10n_ro_account_id.
+            is_stock_transfer = loc_src.usage in (
+                "internal",
+                "transit",
+            ) and loc_dest.usage in ("internal", "transit")
             move.l10n_ro_transfer_account_id = (
                 transfer_account.id
-                if transfer_account and transfer_account != account
+                if is_stock_transfer
+                and transfer_account
+                and transfer_account != account
                 else False
             )
 
