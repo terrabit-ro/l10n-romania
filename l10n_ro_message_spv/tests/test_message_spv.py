@@ -963,14 +963,13 @@ class TestMessageSPV(TestMessageSPV):
             }
         )
 
-        # get_partner
+        # get_partner: an unknown CIF creates no partner
         message_spv.get_partner()
-        self.assertTrue(message_spv.partner_id)
-        self.assertEqual(message_spv.partner_id.vat, "RO999")
+        self.assertFalse(message_spv.partner_id)
 
         # show_invoice
         invoice = self.env["account.move"].create(
-            {"move_type": "in_invoice", "partner_id": message_spv.partner_id.id}
+            {"move_type": "in_invoice", "partner_id": self.vendor.id}
         )
         message_spv.invoice_id = invoice
         action = message_spv.show_invoice()
@@ -1356,10 +1355,12 @@ class TestMessageSPV(TestMessageSPV):
         )
 
     def test_get_partner_from_cif_creates_normalized_partner(self):
-        """An unknown CIF creates a single partner, with the CIF normalized
-        without the RO prefix."""
+        """An unknown CIF creates no partner by default; on request it
+        creates a single partner, with the CIF normalized without the RO
+        prefix."""
         company = self.env.company
-        partner = company._l10n_ro_get_partner_from_cif("RO9999997")
+        self.assertFalse(company._l10n_ro_get_partner_from_cif("RO9999997"))
+        partner = company._l10n_ro_get_partner_from_cif("RO9999997", create=True)
         self.assertEqual(partner.name, "Unknown")
         self.assertEqual(partner.vat, "9999997")
         self.assertEqual(partner.company_id, company)
@@ -1433,9 +1434,9 @@ class TestMessageSPV(TestMessageSPV):
             }
         )
         message.get_partner()
-        self.assertTrue(message.partner_id)
+        # the foreign partner is not reused, and no partner is created
         self.assertNotEqual(message.partner_id, foreign_partner)
-        self.assertEqual(message.partner_id.company_id, self.env.company)
+        self.assertFalse(message.partner_id)
 
         foreign_partner_2 = self.env["res.partner"].create(
             {
@@ -1446,7 +1447,7 @@ class TestMessageSPV(TestMessageSPV):
                 "company_id": other_company.id,
             }
         )
-        partner = self.env.company._l10n_ro_get_partner_from_cif("9999997")
+        partner = self.env.company._l10n_ro_get_partner_from_cif("9999997", create=True)
         self.assertNotEqual(partner, foreign_partner_2)
         self.assertEqual(partner.name, "Unknown")
         self.assertEqual(partner.company_id, self.env.company)
@@ -1690,3 +1691,29 @@ class TestMessageSPV(TestMessageSPV):
         sent = notifications()
         self.assertEqual(len(sent), 2)
         self.assertNotEqual(sent[0].body, sent[1].body)
+
+    def test_readonly_user_has_no_sync_buttons(self):
+        """Utilizatorul doar citire nu vede butoanele care scriu (Actualizare
+        șterge și creează mesaje); contabilul le vede."""
+        readonly = self.env["res.users"].create(
+            {
+                "name": "Contabil doar citire",
+                "login": "spv_readonly",
+                "company_id": self.env.company.id,
+                "company_ids": [(6, 0, self.env.company.ids)],
+                "group_ids": [
+                    (6, 0, [self.env.ref("account.group_account_readonly").id])
+                ],
+            }
+        )
+        message_obj = self.env["l10n.ro.message.spv"]
+        actions = ("refresh", "download_from_spv", "get_invoice_from_move")
+        for view_type in ("list", "form"):
+            arch = message_obj.with_user(readonly).get_views([(False, view_type)])[
+                "views"
+            ][view_type]["arch"]
+            for name in actions + ("create_invoice",):
+                self.assertNotIn(f'name="{name}"', arch, (view_type, name))
+        arch = message_obj.get_views([(False, "list")])["views"]["list"]["arch"]
+        for name in actions:
+            self.assertIn(f'name="{name}"', arch)
