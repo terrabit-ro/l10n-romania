@@ -586,6 +586,12 @@ reuses the account mapping of the move type, in red (storno) when the
 move was overvalued, and is dated like the stock entries of core
 (<tt class="docutils literal">force_period_date</tt>, else today). Compensations already posted are
 not changed.</li>
+<li>Fix a FIFO move valued from its origin moves (no bill, order,
+production or return to value it) when it has several of them, e.g.
+the second step of a reception received in two batches. Only the first
+origin was taken, at its price for the whole quantity, and building
+the description raised <tt class="docutils literal">Expected singleton</tt>, blocking the
+validation. The unit value is now taken over all the origin moves.</li>
 </ul>
 </div>
 <div class="section" id="section-2">

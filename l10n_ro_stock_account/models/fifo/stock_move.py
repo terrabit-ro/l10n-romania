@@ -271,21 +271,26 @@ class StockMove(models.Model):
         ignore_manual_update=False,
     ):
         if self.move_orig_ids:
-            move_origin = self.move_orig_ids[0]
-            origin_data = move_origin._get_value_data(
-                forced_std_price=forced_std_price,
-                ignore_manual_update=ignore_manual_update,
-            )
-            proportion = (
-                quantity / origin_data["quantity"] if origin_data["quantity"] else 0
-            )
-            value = proportion * origin_data["value"]
+            # A move can come from several origins (e.g. the second step of a
+            # reception received in two batches): take the unit value over all
+            # of them, not the first one only.
+            origin_value = origin_qty = 0.0
+            for move_origin in self.move_orig_ids:
+                origin_data = move_origin._get_value_data(
+                    forced_std_price=forced_std_price,
+                    ignore_manual_update=ignore_manual_update,
+                )
+                origin_value += origin_data["value"]
+                origin_qty += origin_data["quantity"]
+            proportion = quantity / origin_qty if origin_qty else 0
             return {
-                "value": value,
+                "value": proportion * origin_value,
                 "quantity": quantity,
                 "description": self.env._(
                     "Value based on origin move %(reference)s",
-                    reference=self.move_orig_ids.reference,
+                    reference=", ".join(
+                        filter(None, self.move_orig_ids.mapped("reference"))
+                    ),
                 ),
             }
         return {}
