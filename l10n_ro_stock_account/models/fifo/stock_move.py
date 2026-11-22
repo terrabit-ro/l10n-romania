@@ -165,6 +165,15 @@ class StockMove(models.Model):
             for move in moves_out_fifo_splitted:
                 move._set_quantity_done(move.quantity)
                 move.picked = True
+        # The split already valued these moves from the source location stack
+        # (``value_manual``, possibly zero for a free layer): tell `_set_value`
+        # to keep that value instead of walking the stack again once the stock
+        # has left the location.
+        valued_ids = (ro_fifo_moves_out | moves_out_fifo_splitted).ids
+        if valued_ids:
+            self = self.with_context(  # noqa: PLW0642
+                l10n_ro_fifo_valued_move_ids=valued_ids
+            )
         return super(StockMove, self | moves_out_fifo_splitted)._action_done(
             cancel_backorder=cancel_backorder
         )
@@ -180,6 +189,7 @@ class StockMove(models.Model):
             recompute_date=recompute_date, skip_check=skip_check
         )
         if ro_fifo_out_moves:
+            valued_ids = set(self.env.context.get("l10n_ro_fifo_valued_move_ids", ()))
             for move in ro_fifo_out_moves:
                 # 20.0: the value of an outgoing move is negative.
                 # The move was split on the FIFO layers of its source location
@@ -189,13 +199,22 @@ class StockMove(models.Model):
                 if manual_data["quantity"]:
                     move.value = -abs(manual_data["value"])
                     continue
+                if move.id in valued_ids:
+                    # Valued by the split at zero (a free layer): core creates
+                    # no `product.value` for a manual value equal to the
+                    # current one (0), so keep zero instead of walking the
+                    # stack again once the stock has left the location.
+                    move.value = 0
+                    continue
+                # Not valued by the split (e.g. a move created already done):
+                # consume from the stack of the location the goods leave.
                 value = 0
                 for move_line in move.move_line_ids:
                     value += move.product_id._run_fifo_value(
                         move_line.quantity_product_uom,
                         lot=move_line.lot_id,
                         at_date=move.date,
-                        location=move_line.location_dest_id,
+                        location=move_line.location_id,
                     )
                 move.value = -value
         # AVG: mark outgoing moves that consumed more than the on-hand qty
