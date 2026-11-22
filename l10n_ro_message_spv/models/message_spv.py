@@ -17,6 +17,11 @@ _logger = logging.getLogger(__name__)
 session = requests.Session()
 
 RECEIVED_TYPES = ("in_invoice", "in_receipt")
+# Odoo bills an SPV invoice received with code 751 (paid with a fiscal
+# receipt) as a regular vendor bill, so a received message matches any of
+# these move types, whatever its own type.
+RECEIVED_MOVE_TYPES = ("in_invoice", "in_refund", "in_receipt")
+SENT_MOVE_TYPES = ("out_invoice", "out_refund", "out_receipt")
 
 
 def _is_placeholder_partner_name(name):
@@ -547,35 +552,71 @@ class MessageSPV(models.Model):
                 or i.ref == m.ref
                 or i.name == m.ref
             )
-            if not invoice and message.ref:
-                if message.message_type == "in_invoice":
-                    move_type = ("in_invoice", "in_refund")
-                else:
-                    move_type = ("out_invoice", "out_refund")
-
-                if message.partner_id:
-                    partner_domain = [
-                        ("commercial_partner_id", "=", message.partner_id.id)
-                    ]
-                else:
-                    # Supplier not linked yet: match the bill by its CIF.
-                    partner_domain = [
-                        (
-                            "commercial_partner_id.vat",
-                            "in",
-                            _cif_variants(message.cif) or [False],
-                        )
-                    ]
-                domain = partner_domain + [
-                    ("ref", "=", message.ref),
-                    ("move_type", "in", move_type),
-                ]
-                invoice = self.env["account.move"].search(domain, limit=1)
+            invoice = self._l10n_ro_best_invoice(invoice)
+            # A draft found by the SPV ids may be an empty shell left by a
+            # failed import: the bill matched by partner and reference
+            # wins over it once it is posted.
+            if invoice.state != "posted" and message.ref:
+                invoice = self._l10n_ro_best_invoice(
+                    invoice | message._l10n_ro_search_invoice_by_ref()
+                )
 
             if invoice:
-                message.write({"invoice_id": invoice[0].id})
+                message.write({"invoice_id": invoice.id})
 
         self.get_data_from_invoice()
+
+    def _l10n_ro_move_types(self):
+        """The move types an invoice of this message may have."""
+        self.ensure_one()
+        if self.message_type in RECEIVED_TYPES:
+            return RECEIVED_MOVE_TYPES
+        return SENT_MOVE_TYPES
+
+    def _l10n_ro_partner_domain(self):
+        """Domain on account.move matching the partner of the message, or
+        its CIF while the partner is not linked yet."""
+        self.ensure_one()
+        if self.partner_id:
+            return [
+                (
+                    "commercial_partner_id",
+                    "=",
+                    self.partner_id.commercial_partner_id.id,
+                )
+            ]
+        return [("commercial_partner_id.vat", "in", _cif_variants(self.cif) or [False])]
+
+    def _l10n_ro_search_invoice_by_ref(self):
+        """The invoices with the reference and the partner of the message."""
+        self.ensure_one()
+        if not self.ref:
+            return self.env["account.move"]
+        domain = self._l10n_ro_partner_domain() + [
+            ("ref", "=", self.ref),
+            ("move_type", "in", self._l10n_ro_move_types()),
+            ("state", "!=", "cancel"),
+        ]
+        if self.company_id:
+            domain.append(("company_id", "=", self.company_id.id))
+        return self.env["account.move"].search(domain)
+
+    @api.model
+    def _l10n_ro_best_invoice(self, invoices):
+        """The invoice to link among the candidates: a posted invoice
+        first, then a draft with a partner or lines, an empty draft last
+        (left by a failed import, it must never hide the real bill).
+        Cancelled invoices are ignored."""
+        invoices = invoices.filtered(lambda i: i.state != "cancel")
+
+        def rank(invoice):
+            if invoice.state == "posted":
+                return 0
+            if invoice.partner_id or invoice.invoice_line_ids:
+                return 1
+            return 2
+
+        return invoices.sorted(lambda i: (rank(i), i.id))[:1]
 
     def get_data_from_invoice(self):
         self.get_partner()
@@ -717,8 +758,13 @@ class MessageSPV(models.Model):
             files_data = new_invoice._to_files_data(attachment_xml)
 
             try:
-                new_invoice._extend_with_attachments(files_data)
+                with self.env.cr.savepoint():
+                    new_invoice._extend_with_attachments(files_data)
             except Exception as e:
+                # No empty draft is left behind: it would keep the SPV ids
+                # and be found again instead of the real bill.
+                attachment_xml.unlink()
+                new_invoice.unlink()
                 message.write({"state": "error", "error": str(e)})
                 continue
 
