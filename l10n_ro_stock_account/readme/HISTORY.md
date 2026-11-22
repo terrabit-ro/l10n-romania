@@ -33,6 +33,12 @@
   also at a past date. The product-level valuation and the stock/accounting
   reconciliation built on it (`l10n_ro_stock_sheet`) now match the
   per-location value.
+- Fix the negative stock compensation of an internal transfer correcting its
+  value the wrong way. 20.0 values the outgoing moves negative and the
+  compensation subtracted the difference from them, but a transfer, both
+  incoming and outgoing, is valued positive: a transfer of 320 compensated by
+  80 went down to 240 instead of up to 400, while its entry was right. The
+  difference now follows the sign of the move.
 
 ## 20.0.1.14.0
 

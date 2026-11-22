@@ -496,10 +496,13 @@ class StockMove(models.Model):
             old_value_for_qty = unit_origin * consume_qty
             new_value_for_qty = in_price * consume_qty
             delta = new_value_for_qty - old_value_for_qty
+            # 20.0: the value of an outgoing move is negative, but a move both
+            # incoming and outgoing (internal transfer) is valued as incoming,
+            # positive (see `_get_l10n_ro_value`).
+            sign = -1 if out_move.is_out and not out_move.is_in else 1
             out_move.write(
                 {
-                    # 20.0: the value of the outgoing move is negative
-                    "value": out_move.value - delta,
+                    "value": out_move.value + sign * delta,
                     "fifo_neg_pending_qty": out_move.fifo_neg_pending_qty - consume_qty,
                     "fifo_neg_origin_value": out_move.fifo_neg_origin_value
                     - old_value_for_qty,
