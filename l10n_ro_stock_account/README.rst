@@ -200,6 +200,19 @@ Performance notes
 Changelog
 =========
 
+19.0.1.18.0
+-----------
+
+- Fix an outgoing FIFO move consuming a layer worth zero (goods received
+  free of charge) being valued at the price of earlier deliveries. The
+  FIFO split stores the value of each outgoing move in ``value_manual``,
+  but ``_set_value`` only kept it when it was not zero; otherwise it
+  walked the FIFO stack again, of the destination location (the customer
+  location, holding the previous deliveries) and after the stock had
+  already left. The value computed by the split is now always kept, and
+  a move that does not go through the split is valued from the stack of
+  its source location. Moves already posted are not changed.
+
 19.0.1.17.0
 -----------
 
