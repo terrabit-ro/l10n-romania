@@ -212,6 +212,16 @@ Changelog
   already left. The value computed by the split is now always kept, and
   a move that does not go through the split is valued from the stack of
   its source location. Moves already posted are not changed.
+- Post the negative stock compensation on the accounts of the outgoing
+  move it corrects. The compensation always went to the stock variation
+  / expense account, so an internal transfer out of an empty warehouse
+  was corrected on 607 instead of between the two stock accounts (371
+  destination / 482 / 371 source), and a consumption or an inventory
+  loss on the expense account instead of its own. The correction now
+  reuses the account mapping of the move type, in red (storno) when the
+  move was overvalued, and is dated like the stock entries of core
+  (``force_period_date``, else today). Compensations already posted are
+  not changed.
 
 19.0.1.17.0
 -----------

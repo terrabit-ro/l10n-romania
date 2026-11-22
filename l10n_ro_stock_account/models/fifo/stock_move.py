@@ -499,7 +499,7 @@ class StockMove(models.Model):
             remaining_in_qty -= consume_qty
             if self.company_id.currency_id.is_zero(delta):
                 continue
-            line_vals += self._fifo_neg_build_adjust_lines(out_move, delta)
+            line_vals += self._fifo_neg_build_adjust_lines(out_move, delta, consume_qty)
         if not line_vals:
             return
         journal = self.company_id.account_stock_journal_id
@@ -519,7 +519,9 @@ class StockMove(models.Model):
                         self.reference or self.name,
                     ),
                     "journal_id": journal.id,
-                    "date": fields.Date.context_today(self),
+                    # Same rule as the stock entries of core.
+                    "date": self.env.context.get("force_period_date")
+                    or fields.Date.context_today(self),
                     "fifo_neg_origin_move_id": self.id,
                     "line_ids": [Command.create(v) for v in line_vals],
                 }
@@ -528,39 +530,26 @@ class StockMove(models.Model):
         adjust._post()
         return adjust
 
-    def _fifo_neg_build_adjust_lines(self, out_move, delta):
-        """Journal lines for the negative stock correction.
-        delta > 0: the outgoing move was undervalued; we add the difference
-                   to the variation/COGS account and credit the stock account.
-        delta < 0: the outgoing move was overvalued; we invert the direction."""
-        accounts = out_move.product_id._get_product_accounts()
-        stock_acc = out_move.location_id.valuation_account_id or accounts.get(
-            "stock_valuation"
-        )
-        variation_acc = accounts.get("stock_variation") or accounts.get("expense")
-        if not stock_acc or not variation_acc:
+    def _fifo_neg_build_adjust_lines(self, out_move, delta, quantity):
+        """Journal lines for the negative stock correction of ``out_move``.
+
+        The correction posts on the same accounts as the entry of the outgoing
+        move itself (by ``l10n_ro_move_type``): 607 / 371 for a delivery, the
+        consumption account for a consumption, 371 destination / 482 / 371
+        source for an internal transfer, and so on. A positive delta (move
+        undervalued) adds to that entry; a negative one reverses it in red
+        (storno), like every other entry of the module."""
+        account_list = out_move._get_l10n_ro_move_type_account_list()
+        if not account_list:
             return []
-        amount = abs(delta)
+        lines = out_move._get_l10n_ro_move_line_vals_list(
+            account_list, [], forced_value=delta
+        )
         label = self.env._(
             "FIFO location compensation: %(product)s / %(loc)s",
             product=out_move.product_id.display_name,
             loc=out_move.location_id.display_name,
         )
-        debit_acc = variation_acc if delta > 0 else stock_acc
-        credit_acc = stock_acc if delta > 0 else variation_acc
-        return [
-            {
-                "account_id": debit_acc.id,
-                "name": label,
-                "debit": amount,
-                "credit": 0,
-                "product_id": out_move.product_id.id,
-            },
-            {
-                "account_id": credit_acc.id,
-                "name": label,
-                "debit": 0,
-                "credit": amount,
-                "product_id": out_move.product_id.id,
-            },
-        ]
+        for line in lines:
+            line.update({"name": label, "quantity": quantity})
+        return lines
