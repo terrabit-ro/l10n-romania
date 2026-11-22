@@ -12,3 +12,4 @@ from . import test_stock_location
 from . import test_notice_currency
 from . import test_ro_stock_dropship
 from . import test_ro_stock_fifo_zero_value
+from . import test_ro_stock_fifo_neg_compensation
