@@ -6,6 +6,8 @@ import logging
 
 from odoo import fields, models
 
+from .message_spv import RECEIVED_MOVE_TYPES, RECEIVED_TYPES, _cif_variants
+
 _logger = logging.getLogger(__name__)
 
 
@@ -59,7 +61,53 @@ class AccountMove(models.Model):
                         )
                         supplier_info.write({"product_code": line.l10n_ro_vendor_code})
 
+        self._l10n_ro_link_spv_messages()
         return res
+
+    def _l10n_ro_link_spv_messages(self):
+        """Link the vendor bills just posted to their SPV messages not yet
+        linked, matched by reference and partner (or CIF), so nobody has to
+        press "Get Invoice" afterwards."""
+        bills = self.filtered(
+            lambda m: m.move_type in RECEIVED_MOVE_TYPES
+            and m.state == "posted"
+            and m.ref
+            and not m.l10n_ro_message_spv_ids
+        )
+        if not bills:
+            return
+        # The users who post bills may only read the SPV messages.
+        messages = (
+            self.env["l10n.ro.message.spv"]
+            .sudo()
+            .search(
+                [
+                    ("invoice_id", "=", False),
+                    ("message_type", "in", RECEIVED_TYPES),
+                    ("ref", "in", bills.mapped("ref")),
+                    ("company_id", "in", bills.company_id.ids),
+                ]
+            )
+        )
+        if not messages:
+            return
+        linked = messages.browse()
+        for bill in bills:
+            partner = bill.commercial_partner_id
+            vat_variants = _cif_variants(partner.vat)
+            to_link = (messages - linked).filtered(
+                lambda m, b=bill, p=partner, v=vat_variants: m.ref == b.ref
+                and m.company_id == b.company_id
+                and (
+                    m.partner_id.commercial_partner_id == p
+                    if m.partner_id
+                    else bool(v) and m.cif in v
+                )
+            )
+            if to_link:
+                to_link.write({"invoice_id": bill.id})
+                linked |= to_link
+        linked.get_data_from_invoice()
 
     def unlink(self):
         # Detach the signed ANAF ZIP so it survives the invoice deletion —

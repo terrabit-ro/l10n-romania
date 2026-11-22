@@ -604,6 +604,23 @@ as To Review and a bill can be created only from an accepted invoice.</li>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>19.0.2.17.0 (2026-11-22)</strong></p>
+<ul class="simple">
+<li><em>Get Invoice</em> on a received invoice with code 751 (paid with a fiscal
+receipt, stored as <em>In Receipt</em>) now finds the vendor bill with the
+same reference and supplier. It used to look among the customer
+invoices and never found it.</li>
+<li>An empty draft bill holding the SPV index of a message (left by a
+failed import) no longer hides the real bill: when several bills
+match, the posted one is linked first, then a draft with a supplier or
+lines, an empty draft last. <em>Create Invoice</em> no longer leaves an empty
+draft behind when the XML import fails.</li>
+<li>Posting a vendor bill links the SPV messages not yet linked that have
+the same reference and supplier (or CIF), without pressing <em>Get
+Invoice</em>.</li>
+<li>At upgrade, the received SPV messages without an invoice are matched
+again with these rules; the log shows how many were linked.</li>
+</ul>
 <p><strong>19.0.2.16.1 (2026-11-13)</strong></p>
 <ul class="simple">
 <li>The SPV messages received before 19.0.2.16.0 now show their partner

@@ -696,13 +696,26 @@ class TestMessageSPV(TestMessageSPV):
             partner_id=self.vendor.id,
         )
 
+        def failing_import(self, *args, **kwargs):
+            raise Exception("Test Exception")
+
+        # A plain function, not a MagicMock: the failed import now deletes
+        # the draft, and a MagicMock looks like an @api.ondelete method
+        # (any attribute is truthy), so it would be cached among the
+        # ondelete hooks of account.move and break every later unlink.
         with patch(
             "odoo.addons.account.models.account_move.AccountMove._extend_with_attachments",
-            side_effect=Exception("Test Exception"),
+            new=failing_import,
         ):
             message_spv.create_invoice()
             self.assertEqual(message_spv.state, "error")
             self.assertIn("Test Exception", message_spv.error)
+        # the failed import leaves no empty draft holding the SPV ids
+        self.assertFalse(
+            self.env["account.move"].search(
+                [("l10n_ro_edi_download", "=", "TEST_CREATE_ERR")]
+            )
+        )
 
         # without a usable ZIP, create_invoice records an error
         message_no_zip = self.env["l10n.ro.message.spv"].create(
@@ -770,6 +783,123 @@ class TestMessageSPV(TestMessageSPV):
         error_msg_spv.get_invoice_from_move()
         self.assertEqual(error_msg_spv.invoice_id.id, invoice.id)
         self.assertEqual(edi_doc.state, "invoice_refused")
+
+    def _create_posted_bill(self, ref, move_type="in_invoice", amount=89.80):
+        bill = self.env["account.move"].create(
+            {
+                "move_type": move_type,
+                "partner_id": self.vendor.id,
+                "ref": ref,
+                "invoice_date": "2026-10-15",
+                "invoice_line_ids": [
+                    (0, 0, {"name": "test", "quantity": 1, "price_unit": amount})
+                ],
+            }
+        )
+        bill.action_post()
+        return bill
+
+    def test_receipt_message_finds_vendor_bill(self):
+        """A message with code 751 (in_receipt) finds the vendor bill with
+        the same reference and partner (#10041)."""
+        bill = self._create_posted_bill("F236077126-07043")
+        message = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "MSG751",
+                "request_id": "REQ751",
+                "ref": "F236077126-07043",
+                "partner_id": self.vendor.id,
+                "message_type": "in_receipt",
+            }
+        )
+        message.get_invoice_from_move()
+        self.assertEqual(message.invoice_id, bill)
+        self.assertEqual(message.state, "done")
+
+    def test_receipt_message_by_cif_without_partner(self):
+        """Without a linked partner, the bill is matched by the CIF."""
+        bill = self._create_posted_bill("F-CIF-751")
+        message = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "MSG751CIF",
+                "request_id": "REQ751CIF",
+                "ref": "F-CIF-751",
+                "cif": "20603502",
+                "message_type": "in_receipt",
+            }
+        )
+        message.get_invoice_from_move()
+        self.assertEqual(message.invoice_id, bill)
+
+    def test_empty_draft_with_index_loses_to_posted_bill(self):
+        """An empty draft holding the index of the message (left by a
+        failed import) does not hide the posted bill (#10041)."""
+        empty_draft = self.env["account.move"].create(
+            {"move_type": "in_invoice", "l10n_ro_edi_index": "6909645876"}
+        )
+        bill = self._create_posted_bill("HRO925493", amount=250)
+        message = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "MSGHILTI",
+                "request_id": "6909645876",
+                "ref": "HRO925493",
+                "partner_id": self.vendor.id,
+                "message_type": "in_invoice",
+            }
+        )
+        message.get_invoice_from_move()
+        self.assertEqual(message.invoice_id, bill)
+        self.assertNotEqual(message.invoice_id, empty_draft)
+
+    def test_best_invoice_ranking(self):
+        """Posted first, then a draft with content, an empty draft last;
+        cancelled invoices are never picked."""
+        Message = self.env["l10n.ro.message.spv"]
+        empty_draft = self.env["account.move"].create({"move_type": "in_invoice"})
+        draft = self.env["account.move"].create(
+            {"move_type": "in_invoice", "partner_id": self.vendor.id}
+        )
+        cancelled = self.env["account.move"].create(
+            {"move_type": "in_invoice", "partner_id": self.vendor.id}
+        )
+        cancelled.button_cancel()
+        self.assertEqual(Message._l10n_ro_best_invoice(empty_draft | draft), draft)
+        self.assertEqual(
+            Message._l10n_ro_best_invoice(empty_draft | cancelled), empty_draft
+        )
+        self.assertFalse(Message._l10n_ro_best_invoice(cancelled))
+        bill = self._create_posted_bill("REF-RANK")
+        self.assertEqual(
+            Message._l10n_ro_best_invoice(empty_draft | draft | bill), bill
+        )
+
+    def test_post_bill_links_spv_message(self):
+        """Posting a vendor bill links the SPV message with the same
+        reference and partner, without "Get Invoice" (#10041)."""
+        message = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "MSGEMAG",
+                "request_id": "REQEMAG",
+                "ref": "EMAG-0122",
+                "partner_id": self.vendor.id,
+                "message_type": "in_invoice",
+            }
+        )
+        other = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "MSGOTHER",
+                "request_id": "REQOTHER",
+                "ref": "EMAG-0122",
+                "cif": "99999999",
+                "message_type": "in_invoice",
+            }
+        )
+        bill = self._create_posted_bill("EMAG-0122", amount=491.97)
+        self.assertEqual(message.invoice_id, bill)
+        self.assertEqual(message.state, "done")
+        self.assertEqual(message.invoice_amount, bill.amount_total)
+        # same reference, other supplier: left alone
+        self.assertFalse(other.invoice_id)
 
     def test_create_invoice_variants(self):
         """Testează crearea facturii cu gestionarea duplicatelor și erori"""
