@@ -24,6 +24,15 @@
   price for the whole quantity, and building the description raised
   `Expected singleton`, blocking the validation. The unit value is now taken
   over all the origin moves.
+- Fix the value of a FIFO product (`total_value`, `avg_cost`) with FIFO per
+  location. It came from a single company-wide FIFO run, taking the last
+  incoming moves of the company whatever location they were consumed from:
+  receiving 10 @ 10 in a warehouse and 10 @ 20 in another, then delivering
+  the second ones, showed 150 instead of the 100 left in stock. The value is
+  now the sum of the FIFO value of each valued location, as on the quants,
+  also at a past date. The product-level valuation and the stock/accounting
+  reconciliation built on it (`l10n_ro_stock_sheet`) now match the
+  per-location value.
 
 ## 20.0.1.14.0
 
