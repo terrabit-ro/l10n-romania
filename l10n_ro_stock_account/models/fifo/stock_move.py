@@ -165,6 +165,15 @@ class StockMove(models.Model):
             for move in moves_out_fifo_splitted:
                 move._set_quantity_done(move.quantity)
                 move.picked = True
+        # The split already valued these moves from the source location stack
+        # (``value_manual``, possibly zero for a free layer): tell `_set_value`
+        # to keep that value instead of walking the stack again once the stock
+        # has left the location.
+        valued_ids = (ro_fifo_moves_out | moves_out_fifo_splitted).ids
+        if valued_ids:
+            self = self.with_context(  # noqa: PLW0642
+                l10n_ro_fifo_valued_move_ids=valued_ids
+            )
         return super(StockMove, self | moves_out_fifo_splitted)._action_done(
             cancel_backorder=cancel_backorder
         )
@@ -180,6 +189,7 @@ class StockMove(models.Model):
             correction_quantity=correction_quantity
         )
         if ro_fifo_out_moves:
+            valued_ids = set(self.env.context.get("l10n_ro_fifo_valued_move_ids", ()))
             for move in ro_fifo_out_moves:
                 if correction_quantity:
                     # Quantity edited after validation: value the correction at
@@ -189,16 +199,18 @@ class StockMove(models.Model):
                     if previous_qty:
                         move.value += move.value / previous_qty * correction_quantity
                     continue
-                if move.value_manual:
+                if move.id in valued_ids or move.value_manual:
                     move.value = move.value_manual
                     continue
+                # Not valued by the split (e.g. a move created already done):
+                # consume from the stack of the location the goods leave.
                 value = 0
                 for move_line in move.move_line_ids:
                     value += move.product_id._run_fifo_value(
                         move_line.quantity_product_uom,
                         lot=move_line.lot_id,
                         at_date=move.date,
-                        location=move_line.location_dest_id,
+                        location=move_line.location_id,
                     )
                 move.value = value
         # AVG: mark outgoing moves that consumed more than the on-hand qty
@@ -253,22 +265,27 @@ class StockMove(models.Model):
         ignore_manual_update=False,
     ):
         if self.move_orig_ids:
-            move_origin = self.move_orig_ids[0]
-            origin_data = move_origin._get_value_data(
-                forced_std_price=forced_std_price,
-                at_date=at_date,
-                ignore_manual_update=ignore_manual_update,
-            )
-            proportion = (
-                quantity / origin_data["quantity"] if origin_data["quantity"] else 0
-            )
-            value = proportion * origin_data["value"]
+            # A move can come from several origins (e.g. the second step of a
+            # reception received in two batches): take the unit value over all
+            # of them, not the first one only.
+            origin_value = origin_qty = 0.0
+            for move_origin in self.move_orig_ids:
+                origin_data = move_origin._get_value_data(
+                    forced_std_price=forced_std_price,
+                    at_date=at_date,
+                    ignore_manual_update=ignore_manual_update,
+                )
+                origin_value += origin_data["value"]
+                origin_qty += origin_data["quantity"]
+            proportion = quantity / origin_qty if origin_qty else 0
             return {
-                "value": value,
+                "value": proportion * origin_value,
                 "quantity": quantity,
                 "description": self.env._(
                     "Value based on origin move %(reference)s",
-                    reference=self.move_orig_ids.reference,
+                    reference=", ".join(
+                        filter(None, self.move_orig_ids.mapped("reference"))
+                    ),
                 ),
             }
         return {}
@@ -487,7 +504,7 @@ class StockMove(models.Model):
             remaining_in_qty -= consume_qty
             if self.company_id.currency_id.is_zero(delta):
                 continue
-            line_vals += self._fifo_neg_build_adjust_lines(out_move, delta)
+            line_vals += self._fifo_neg_build_adjust_lines(out_move, delta, consume_qty)
         if not line_vals:
             return
         journal = self.company_id.account_stock_journal_id
@@ -507,7 +524,9 @@ class StockMove(models.Model):
                         self.reference or self.name,
                     ),
                     "journal_id": journal.id,
-                    "date": fields.Date.context_today(self),
+                    # Same rule as the stock entries of core.
+                    "date": self.env.context.get("force_period_date")
+                    or fields.Date.context_today(self),
                     "fifo_neg_origin_move_id": self.id,
                     "line_ids": [Command.create(v) for v in line_vals],
                 }
@@ -516,39 +535,26 @@ class StockMove(models.Model):
         adjust._post()
         return adjust
 
-    def _fifo_neg_build_adjust_lines(self, out_move, delta):
-        """Journal lines for the negative stock correction.
-        delta > 0: the outgoing move was undervalued; we add the difference
-                   to the variation/COGS account and credit the stock account.
-        delta < 0: the outgoing move was overvalued; we invert the direction."""
-        accounts = out_move.product_id._get_product_accounts()
-        stock_acc = out_move.location_id.valuation_account_id or accounts.get(
-            "stock_valuation"
-        )
-        variation_acc = accounts.get("stock_variation") or accounts.get("expense")
-        if not stock_acc or not variation_acc:
+    def _fifo_neg_build_adjust_lines(self, out_move, delta, quantity):
+        """Journal lines for the negative stock correction of ``out_move``.
+
+        The correction posts on the same accounts as the entry of the outgoing
+        move itself (by ``l10n_ro_move_type``): 607 / 371 for a delivery, the
+        consumption account for a consumption, 371 destination / 482 / 371
+        source for an internal transfer, and so on. A positive delta (move
+        undervalued) adds to that entry; a negative one reverses it in red
+        (storno), like every other entry of the module."""
+        account_list = out_move._get_l10n_ro_move_type_account_list()
+        if not account_list:
             return []
-        amount = abs(delta)
+        lines = out_move._get_l10n_ro_move_line_vals_list(
+            account_list, [], forced_value=delta
+        )
         label = self.env._(
             "FIFO location compensation: %(product)s / %(loc)s",
             product=out_move.product_id.display_name,
             loc=out_move.location_id.display_name,
         )
-        debit_acc = variation_acc if delta > 0 else stock_acc
-        credit_acc = stock_acc if delta > 0 else variation_acc
-        return [
-            {
-                "account_id": debit_acc.id,
-                "name": label,
-                "debit": amount,
-                "credit": 0,
-                "product_id": out_move.product_id.id,
-            },
-            {
-                "account_id": credit_acc.id,
-                "name": label,
-                "debit": 0,
-                "credit": amount,
-                "product_id": out_move.product_id.id,
-            },
-        ]
+        for line in lines:
+            line.update({"name": label, "quantity": quantity})
+        return lines
