@@ -1,3 +1,20 @@
+**20.0.2.18.0 (2026-11-22)**
+
+- *Get Invoice* on a received invoice with code 751 (paid with a fiscal
+  receipt, stored as *In Receipt*) now finds the vendor bill with the
+  same reference and supplier. It used to look among the customer
+  invoices and never found it.
+- An empty draft bill holding the SPV index of a message (left by a failed
+  import) no longer hides the real bill: when several bills match, the
+  posted one is linked first, then a draft with a supplier or lines, an
+  empty draft last. *Create Invoice* no longer leaves an empty draft behind
+  when the XML import fails.
+- Posting a vendor bill links the SPV messages not yet linked that have
+  the same reference and supplier (or CIF), without pressing *Get
+  Invoice*.
+- At upgrade, the received SPV messages without an invoice are matched
+  again with these rules; the log shows how many were linked.
+
 **20.0.2.17.1 (2026-11-21)**
 
 - The SPV messages received before 20.0.2.17.0 now show their partner too.
