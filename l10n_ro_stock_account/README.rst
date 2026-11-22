@@ -222,6 +222,12 @@ Changelog
   move was overvalued, and is dated like the stock entries of core
   (``force_period_date``, else today). Compensations already posted are
   not changed.
+- Fix a FIFO move valued from its origin moves (no bill, order,
+  production or return to value it) when it has several of them, e.g.
+  the second step of a reception received in two batches. Only the first
+  origin was taken, at its price for the whole quantity, and building
+  the description raised ``Expected singleton``, blocking the
+  validation. The unit value is now taken over all the origin moves.
 
 19.0.1.17.0
 -----------
