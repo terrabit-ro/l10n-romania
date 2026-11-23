@@ -564,6 +564,52 @@ Inventory Valuation reports drop from O(N) queries to O(distinct
 </div>
 </div>
 <div class="section" id="section-1">
+<h2>20.0.1.15.0</h2>
+<ul class="simple">
+<li>Fix an outgoing FIFO move consuming a layer worth zero (goods received
+free of charge) being valued at the price of earlier deliveries. The
+FIFO split stores the value of each outgoing move as a manual value,
+but core creates no <tt class="docutils literal">product.value</tt> for a manual value of zero, so
+<tt class="docutils literal">_set_value</tt> walked the FIFO stack again, of the destination
+location (the customer location, holding the previous deliveries) and
+after the stock had already left. The value computed by the split is
+now always kept, zero included, and a move that does not go through
+the split is valued from the stack of its source location. Moves
+already posted are not changed.</li>
+<li>Post the negative stock compensation on the accounts of the outgoing
+move it corrects. The compensation always went to the stock variation
+/ expense account, so an internal transfer out of an empty warehouse
+was corrected on 607 instead of between the two stock accounts (371
+destination / 482 / 371 source), and a consumption or an inventory
+loss on the expense account instead of its own. The correction now
+reuses the account mapping of the move type, in red (storno) when the
+move was overvalued, and is dated like the stock entries of core
+(<tt class="docutils literal">force_period_date</tt>, else today). Compensations already posted are
+not changed.</li>
+<li>Fix a FIFO move valued from its origin moves (no bill, order,
+production or return to value it) when it has several of them, e.g.
+the second step of a reception received in two batches. Only the first
+origin was taken, at its price for the whole quantity, and building
+the description raised <tt class="docutils literal">Expected singleton</tt>, blocking the
+validation. The unit value is now taken over all the origin moves.</li>
+<li>Fix the value of a FIFO product (<tt class="docutils literal">total_value</tt>, <tt class="docutils literal">avg_cost</tt>) with
+FIFO per location. It came from a single company-wide FIFO run, taking
+the last incoming moves of the company whatever location they were
+consumed from: receiving 10 &#64; 10 in a warehouse and 10 &#64; 20 in
+another, then delivering the second ones, showed 150 instead of the
+100 left in stock. The value is now the sum of the FIFO value of each
+valued location, as on the quants, also at a past date. The
+product-level valuation and the stock/accounting reconciliation built
+on it (<tt class="docutils literal">l10n_ro_stock_sheet</tt>) now match the per-location value.</li>
+<li>Fix the negative stock compensation of an internal transfer correcting
+its value the wrong way. 20.0 values the outgoing moves negative and
+the compensation subtracted the difference from them, but a transfer,
+both incoming and outgoing, is valued positive: a transfer of 320
+compensated by 80 went down to 240 instead of up to 400, while its
+entry was right. The difference now follows the sign of the move.</li>
+</ul>
+</div>
+<div class="section" id="section-2">
 <h2>20.0.1.14.0</h2>
 <ul class="simple">
 <li>Fix internal transfers posting on the expense account when the product
@@ -577,7 +623,7 @@ now always the stock account of the destination location. Entries
 already posted are not changed.</li>
 </ul>
 </div>
-<div class="section" id="section-2">
+<div class="section" id="section-3">
 <h2>20.0.1.13.0</h2>
 <ul class="simple">
 <li>Fix a transfer that mixes FIFO products with products costed otherwise
@@ -600,7 +646,7 @@ cashier. The split is now computed first and the whole transfer, split
 moves included, goes through a single <tt class="docutils literal"><span class="pre">super()._action_done()</span></tt>.</li>
 </ul>
 </div>
-<div class="section" id="section-3">
+<div class="section" id="section-4">
 <h2>19.0.1.8.0</h2>
 <ul class="simple">
 <li>Fix dropship moves retroactively repricing unrelated real stock of the
@@ -626,7 +672,7 @@ stock strictly from its own <tt class="docutils literal">total_value</tt>/<tt cl
 of which a dropship move ever touches.</li>
 </ul>
 </div>
-<div class="section" id="section-4">
+<div class="section" id="section-5">
 <h2>19.0.1.7.0</h2>
 <ul class="simple">
 <li>Fix missing stock valuation entries for dropshipped stock moves. A
@@ -657,7 +703,7 @@ deliberate regularisation entry if the accumulated balance is to be
 cleared.</li>
 </ul>
 </div>
-<div class="section" id="section-5">
+<div class="section" id="section-6">
 <h2>19.0.1.5.0</h2>
 <ul class="simple">
 <li>Keep the standard valuation for an internal transfer whose source
@@ -670,7 +716,7 @@ of credited, so the transfer deepened its negative balance instead of
 relieving it.</li>
 </ul>
 </div>
-<div class="section" id="section-6">
+<div class="section" id="section-7">
 <h2>19.0.1.3.0</h2>
 <ul class="simple">
 <li>Value an internal transfer at the cost the source warehouse actually
@@ -700,7 +746,7 @@ different mechanism: on this series the valuation layer is gone and
 the value lives on the move.</li>
 </ul>
 </div>
-<div class="section" id="section-7">
+<div class="section" id="section-8">
 <h2>19.0.1.1.1</h2>
 <ul class="simple">
 <li>Fix silent over-delivery in <tt class="docutils literal">stock_move._split_for_fifo_assignment</tt>:
@@ -725,7 +771,7 @@ instead of silently completing the transfer if the amount accounted
 for by the split still doesn’t match.</li>
 </ul>
 </div>
-<div class="section" id="section-8">
+<div class="section" id="section-9">
 <h2>19.0.1.0.0</h2>
 <ul class="simple">
 <li>Recognise the exchange rate difference on the 408 pivot (<em>Furnizori -
@@ -758,7 +804,7 @@ difference, whose liability arises at the invoice date - is taken at
 the invoice rate.</li>
 </ul>
 </div>
-<div class="section" id="section-9">
+<div class="section" id="section-10">
 <h2>19.0.0.26.1</h2>
 <ul class="simple">
 <li>Expose the <tt class="docutils literal">stock.move.l10n_ro_move_type</tt> selection as the module
@@ -767,7 +813,7 @@ duplicating the list. Up to 18.0 the same list was available as
 <tt class="docutils literal">VALUED_TYPE</tt> on <tt class="docutils literal">stock.valuation.layer</tt>. No functional change.</li>
 </ul>
 </div>
-<div class="section" id="section-10">
+<div class="section" id="section-11">
 <h2>19.0.0.25.1</h2>
 <ul class="simple">
 <li>Fix <tt class="docutils literal">IndexError: list index out of range</tt> in
@@ -782,7 +828,7 @@ the quantities are compared with the UoM rounding instead of raw
 floats.</li>
 </ul>
 </div>
-<div class="section" id="section-11">
+<div class="section" id="section-12">
 <h2>19.0.0.19.1</h2>
 <ul class="simple">
 <li>Fix

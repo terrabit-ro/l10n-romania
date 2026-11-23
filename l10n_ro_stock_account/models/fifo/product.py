@@ -34,9 +34,7 @@ class ProductProduct(models.Model):
             if at_date:
                 product = product.with_context(at_date=at_date)
             qty_available = product.sudo(False)._with_valuation_context().qty_available
-            product.total_value = product._run_fifo_value(
-                qty_available, at_date=at_date
-            )
+            product.total_value = product._l10n_ro_fifo_value_by_location(at_date)
             product.avg_cost = (
                 product.total_value / qty_available if qty_available else 0
             )
@@ -52,6 +50,41 @@ class ProductProduct(models.Model):
         return super(ProductProduct, self - ro_products)._correct_inventory_valuation(
             from_date
         )
+
+    def _l10n_ro_fifo_value_by_location(self, at_date=None):
+        """Value of the product as the sum of its FIFO value in each valued
+        location, like ``stock.quant.value``.
+
+        A single company-wide FIFO run takes the last incoming moves of the
+        company whatever location they were consumed from, so it does not
+        match the per-location value: receiving 10 @ 10 in a warehouse and
+        10 @ 20 in another, then delivering the second ones, leaves 100 in
+        stock and not 150."""
+        self.ensure_one()
+        domain = [
+            ("product_id", "=", self.id),
+            ("company_id", "=", self.env.company.id),
+            ("state", "=", "done"),
+        ]
+        if at_date:
+            domain.append(("date", "<=", at_date))
+        move_obj = self.env["stock.move"].sudo()
+        locations = self.env["stock.location"]
+        for location_field in ("location_id", "location_dest_id"):
+            for (location,) in move_obj._read_group(domain, groupby=[location_field]):
+                locations |= location
+        product = self.sudo(False)._with_valuation_context()
+        if at_date:
+            product = product.with_context(to_date=at_date)
+        value = 0.0
+        for location in locations.filtered(lambda loc: loc._should_be_valued()):
+            quantity = product.with_context(
+                location=location.ids, strict=True
+            ).qty_available
+            if self.uom_id.is_zero(quantity):
+                continue
+            value += self._run_fifo_value(quantity, at_date=at_date, location=location)
+        return value
 
     def _get_remaining_moves_ro(self, lot=None, at_date=None, location=None):
         """Returns a dictionary of stock moves and their remaining quantities

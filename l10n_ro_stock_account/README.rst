@@ -200,6 +200,51 @@ Performance notes
 Changelog
 =========
 
+20.0.1.15.0
+-----------
+
+- Fix an outgoing FIFO move consuming a layer worth zero (goods received
+  free of charge) being valued at the price of earlier deliveries. The
+  FIFO split stores the value of each outgoing move as a manual value,
+  but core creates no ``product.value`` for a manual value of zero, so
+  ``_set_value`` walked the FIFO stack again, of the destination
+  location (the customer location, holding the previous deliveries) and
+  after the stock had already left. The value computed by the split is
+  now always kept, zero included, and a move that does not go through
+  the split is valued from the stack of its source location. Moves
+  already posted are not changed.
+- Post the negative stock compensation on the accounts of the outgoing
+  move it corrects. The compensation always went to the stock variation
+  / expense account, so an internal transfer out of an empty warehouse
+  was corrected on 607 instead of between the two stock accounts (371
+  destination / 482 / 371 source), and a consumption or an inventory
+  loss on the expense account instead of its own. The correction now
+  reuses the account mapping of the move type, in red (storno) when the
+  move was overvalued, and is dated like the stock entries of core
+  (``force_period_date``, else today). Compensations already posted are
+  not changed.
+- Fix a FIFO move valued from its origin moves (no bill, order,
+  production or return to value it) when it has several of them, e.g.
+  the second step of a reception received in two batches. Only the first
+  origin was taken, at its price for the whole quantity, and building
+  the description raised ``Expected singleton``, blocking the
+  validation. The unit value is now taken over all the origin moves.
+- Fix the value of a FIFO product (``total_value``, ``avg_cost``) with
+  FIFO per location. It came from a single company-wide FIFO run, taking
+  the last incoming moves of the company whatever location they were
+  consumed from: receiving 10 @ 10 in a warehouse and 10 @ 20 in
+  another, then delivering the second ones, showed 150 instead of the
+  100 left in stock. The value is now the sum of the FIFO value of each
+  valued location, as on the quants, also at a past date. The
+  product-level valuation and the stock/accounting reconciliation built
+  on it (``l10n_ro_stock_sheet``) now match the per-location value.
+- Fix the negative stock compensation of an internal transfer correcting
+  its value the wrong way. 20.0 values the outgoing moves negative and
+  the compensation subtracted the difference from them, but a transfer,
+  both incoming and outgoing, is valued positive: a transfer of 320
+  compensated by 80 went down to 240 instead of up to 400, while its
+  entry was right. The difference now follows the sign of the move.
+
 20.0.1.14.0
 -----------
 
