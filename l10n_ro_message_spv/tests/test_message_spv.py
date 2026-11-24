@@ -3,6 +3,7 @@
 
 import io
 import json
+import sys
 import zipfile
 from unittest.mock import MagicMock, patch
 
@@ -305,6 +306,47 @@ class TestMessageSPV(TestMessageSPV):
         file_name, xml_bytes = message_spv._get_xml_bytes()
         self.assertEqual(file_name, "5004111924.xml")
         self.assertIn(b"Invoice", xml_bytes)
+
+    def test_create_invoice_no_savepoint_around_import(self):
+        """The core import commits the cursor (rollbackable_transaction) in
+        production. That commit destroys a savepoint opened around the
+        import, so RELEASE SAVEPOINT fails with "savepoint does not exist"
+        (ticket #10054). Tests cannot commit, so check the cause: no
+        savepoint is opened by create_invoice around the import."""
+        message_spv = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "TEST_NOSAVEPOINT",
+                "request_id": "REQ_NOSAVEPOINT",
+                "company_id": self.env.company.id,
+                "message_type": "in_invoice",
+                "cif": "8486152",
+            }
+        )
+        file_invoice = file_path("l10n_ro_message_spv/tests/invoice.zip")
+        anaf_messages = {"content": open(file_invoice, "rb").read()}
+        with patch(
+            "odoo.addons.l10n_ro_message_spv.models.ciusro_document.make_efactura_request",
+            return_value=anaf_messages,
+        ):
+            message_spv.download_from_spv()
+
+        cr_class = type(self.env.cr)
+        original_savepoint = cr_class.savepoint
+        opened_from = []
+
+        def tracking_savepoint(cr, *args, **kwargs):
+            caller = sys._getframe(1)
+            opened_from.append(f"{caller.f_code.co_filename}:{caller.f_lineno}")
+            return original_savepoint(cr, *args, **kwargs)
+
+        with patch.object(cr_class, "savepoint", tracking_savepoint):
+            message_spv.create_invoice()
+        self.assertNotEqual(message_spv.state, "error", message_spv.error)
+        self.assertTrue(message_spv.invoice_id)
+        self.assertFalse(
+            [c for c in opened_from if c.split(":")[0].endswith("models/message_spv.py")],
+            "create_invoice must not wrap the import in a savepoint",
+        )
 
     def test_create_invoice_materializes_xml_on_move(self):
         """create_invoice stores the XML once, directly on the bill, and
