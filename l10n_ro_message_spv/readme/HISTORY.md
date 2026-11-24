@@ -1,3 +1,10 @@
+**19.0.2.17.1 (2026-11-24)**
+
+- *Create Invoice* no longer fails with "savepoint does not exist" when the
+  XML import commits the transaction (Odoo 19 core does, on bills whose
+  lines match a purchase order). The draft bill is linked to the message
+  and the purchase order again.
+
 **19.0.2.17.0 (2026-11-22)**
 
 - *Get Invoice* on a received invoice with code 751 (paid with a fiscal

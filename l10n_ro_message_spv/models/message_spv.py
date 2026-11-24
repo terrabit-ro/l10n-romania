@@ -758,8 +758,13 @@ class MessageSPV(models.Model):
             files_data = new_invoice._to_files_data(attachment_xml)
 
             try:
-                with self.env.cr.savepoint():
-                    new_invoice._extend_with_attachments(files_data)
+                # No savepoint around the import: core's
+                # rollbackable_transaction commits the cursor, which destroys
+                # any savepoint opened around it (RELEASE SAVEPOINT then fails
+                # and hides the real outcome). On failure core rolls back by
+                # itself and re-raises, so the cleanup below runs on a usable
+                # transaction.
+                new_invoice._extend_with_attachments(files_data)
             except Exception as e:
                 # No empty draft is left behind: it would keep the SPV ids
                 # and be found again instead of the real bill.
