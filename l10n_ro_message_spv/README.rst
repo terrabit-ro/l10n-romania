@@ -222,9 +222,33 @@ In **Accounting → Configuration → Settings → e-Factura**:
 
 - *Review received invoices*: received invoices arrive in SPV messages
   as To Review and a bill can be created only from an accepted invoice.
+- *Download only received invoices*: the cron downloads the archives of
+  the received invoices only, not those of the issued invoices.
+
+The cron *Download ZIP SPV Message* downloads the archives of the
+messages of the last 60 days, the time ANAF keeps them; an older message
+is no longer asked for. Its archive can still be downloaded from the
+message, while ANAF has it.
 
 Changelog
 =========
+
+**19.0.2.18.0 (2026-11-25)**
+
+- The cron *Download ZIP SPV Message* asks ANAF only for the messages of
+  the last 60 days, the time ANAF keeps them. An older message used to
+  fail and was put back in the queue every day, forever.
+- New setting *Download only received invoices*: the cron downloads the
+  archives of the received invoices only.
+- The filter *In Invoices* also shows the received invoices paid with a
+  fiscal receipt (*In Receipt*).
+
+**19.0.2.17.1 (2026-11-24)**
+
+- *Create Invoice* no longer fails with "savepoint does not exist" when
+  the XML import commits the transaction (Odoo 19 core does, on bills
+  whose lines match a purchase order). The draft bill is linked to the
+  message and the purchase order again.
 
 **19.0.2.17.0 (2026-11-22)**
 

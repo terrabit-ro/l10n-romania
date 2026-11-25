@@ -600,10 +600,33 @@ XML-ul a fost validat de sistemul ANAF.</li>
 <ul class="simple">
 <li><em>Review received invoices</em>: received invoices arrive in SPV messages
 as To Review and a bill can be created only from an accepted invoice.</li>
+<li><em>Download only received invoices</em>: the cron downloads the archives of
+the received invoices only, not those of the issued invoices.</li>
 </ul>
+<p>The cron <em>Download ZIP SPV Message</em> downloads the archives of the
+messages of the last 60 days, the time ANAF keeps them; an older message
+is no longer asked for. Its archive can still be downloaded from the
+message, while ANAF has it.</p>
 </div>
 <div class="section" id="changelog">
 <h4><a class="toc-backref" href="#toc-entry-2">Changelog</a></h4>
+<p><strong>19.0.2.18.0 (2026-11-25)</strong></p>
+<ul class="simple">
+<li>The cron <em>Download ZIP SPV Message</em> asks ANAF only for the messages of
+the last 60 days, the time ANAF keeps them. An older message used to
+fail and was put back in the queue every day, forever.</li>
+<li>New setting <em>Download only received invoices</em>: the cron downloads the
+archives of the received invoices only.</li>
+<li>The filter <em>In Invoices</em> also shows the received invoices paid with a
+fiscal receipt (<em>In Receipt</em>).</li>
+</ul>
+<p><strong>19.0.2.17.1 (2026-11-24)</strong></p>
+<ul class="simple">
+<li><em>Create Invoice</em> no longer fails with “savepoint does not exist” when
+the XML import commits the transaction (Odoo 19 core does, on bills
+whose lines match a purchase order). The draft bill is linked to the
+message and the purchase order again.</li>
+</ul>
 <p><strong>19.0.2.17.0 (2026-11-22)</strong></p>
 <ul class="simple">
 <li><em>Get Invoice</em> on a received invoice with code 751 (paid with a fiscal
