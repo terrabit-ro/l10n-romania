@@ -955,6 +955,48 @@ class TestMessageSPV(TestMessageSPV):
         self.assertEqual(message.invoice_id, bill)
         self.assertNotEqual(message.invoice_id, empty_draft)
 
+    def test_message_ignores_invoice_of_other_company(self):
+        """The invoice issued by a company of the group has the same number
+        as the reference of the message received by another company: the
+        message never links it (no company crossover)."""
+        other_company = self._create_other_company("Companie emitenta SPV")
+        journal = self.env["account.journal"].create(
+            {
+                "name": "Vanzari alta companie",
+                "code": "VAC",
+                "type": "sale",
+                "company_id": other_company.id,
+            }
+        )
+        issued = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "company_id": other_company.id,
+                "journal_id": journal.id,
+                "name": "UPO/2025/01788",
+                "partner_id": self.vendor.id,
+                "l10n_ro_edi_index": "4825173916",
+            }
+        )
+        message = self.env["l10n.ro.message.spv"].create(
+            {
+                "name": "4483880908",
+                "request_id": "4825173916",
+                "ref": "UPO/2025/01788",
+                "partner_id": self.vendor.id,
+                "message_type": "in_invoice",
+                "company_id": self.env.company.id,
+            }
+        )
+        message.get_invoice_from_move()
+        self.assertFalse(message.invoice_id)
+        self.assertNotEqual(message.invoice_id, issued)
+
+        # the vendor bill of its own company is still found
+        bill = self._create_posted_bill("UPO/2025/01788")
+        message.get_invoice_from_move()
+        self.assertEqual(message.invoice_id, bill)
+
     def test_best_invoice_ranking(self):
         """Posted first, then a draft with content, an empty draft last;
         cancelled invoices are never picked."""

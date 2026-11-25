@@ -501,6 +501,7 @@ class MessageSPV(models.Model):
             for message in messages_with_error:
                 invoice = invoices.filtered(
                     lambda i, m=message: i.l10n_ro_edi_index == m.request_id
+                    and i.company_id == m.company_id
                 )
                 if not invoice:
                     continue
@@ -545,12 +546,20 @@ class MessageSPV(models.Model):
         invoices |= self.env["account.move"].search(domain)
         invoices = invoices.filtered(lambda i: i.state != "cancel")
         for message in messages_without_invoice:
+            # Only the invoices of the company of the message and of the
+            # matching direction: with several companies of the same group,
+            # the invoice issued by one company has the same number as the
+            # reference of the message received by the other.
             invoice = invoices.filtered(
-                lambda i, m=message: i.l10n_ro_edi_download == m.name
-                or i.l10n_ro_edi_transaction == m.request_id
-                or i.l10n_ro_edi_index == m.request_id
-                or i.ref == m.ref
-                or i.name == m.ref
+                lambda i, m=message: i.company_id == m.company_id
+                and i.move_type in m._l10n_ro_move_types()
+                and (
+                    i.l10n_ro_edi_download == m.name
+                    or i.l10n_ro_edi_transaction == m.request_id
+                    or i.l10n_ro_edi_index == m.request_id
+                    or i.ref == m.ref
+                    or i.name == m.ref
+                )
             )
             invoice = self._l10n_ro_best_invoice(invoice)
             # A draft found by the SPV ids may be an empty shell left by a
