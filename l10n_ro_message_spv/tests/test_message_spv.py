@@ -245,6 +245,64 @@ class TestMessageSPV(TestMessageSPV):
         self.assertTrue(message_spv.attachment_id)
         self.assertEqual(message_spv.download_attempts, 1)
 
+    def _create_cron_messages(self):
+        recent = fields.Datetime.now() - relativedelta(days=5)
+        old = fields.Datetime.now() - relativedelta(days=90)
+        vals = [
+            ("CRON_IN_RECENT", "in_invoice", recent, "draft"),
+            ("CRON_OUT_RECENT", "out_invoice", recent, "draft"),
+            ("CRON_IN_OLD", "in_invoice", old, "draft"),
+            ("CRON_IN_OLD_ERROR", "in_invoice", old, "error"),
+        ]
+        return {
+            name: self.env["l10n.ro.message.spv"].create(
+                {
+                    "name": name,
+                    "company_id": self.env.company.id,
+                    "message_type": message_type,
+                    "date": date,
+                    "state": state,
+                    "last_download_date": fields.Date.today() - relativedelta(days=1),
+                }
+            )
+            for name, message_type, date, state in vals
+        }
+
+    def _run_zip_cron(self):
+        downloaded = self.env["l10n.ro.message.spv"]
+
+        def fake_download(messages):
+            nonlocal downloaded
+            downloaded |= messages
+
+        with patch.object(
+            type(self.env["l10n.ro.message.spv"]),
+            "download_from_spv",
+            autospec=True,
+            side_effect=fake_download,
+        ):
+            self.env.company.l10n_ro_download_zip_message_spv(limit=10)
+        return downloaded
+
+    def test_cron_skips_messages_older_than_anaf_retention(self):
+        """ANAF keeps the messages 60 days: the cron no longer asks for older
+        ones, neither the drafts nor those that failed on a previous day."""
+        messages = self._create_cron_messages()
+        downloaded = self._run_zip_cron()
+        self.assertIn(messages["CRON_IN_RECENT"], downloaded)
+        self.assertIn(messages["CRON_OUT_RECENT"], downloaded)
+        self.assertNotIn(messages["CRON_IN_OLD"], downloaded)
+        self.assertNotIn(messages["CRON_IN_OLD_ERROR"], downloaded)
+        self.assertEqual(messages["CRON_IN_OLD_ERROR"].state, "error")
+
+    def test_cron_download_received_only(self):
+        """With the setting on, the cron downloads the received invoices only."""
+        self.env.company.l10n_ro_spv_download_received_only = True
+        messages = self._create_cron_messages()
+        downloaded = self._run_zip_cron()
+        self.assertIn(messages["CRON_IN_RECENT"], downloaded)
+        self.assertNotIn(messages["CRON_OUT_RECENT"], downloaded)
+
     def test_download_from_spv(self):
         # test descarcare zip from SPV
         message_spv = self.env["l10n.ro.message.spv"].create(
@@ -344,7 +402,11 @@ class TestMessageSPV(TestMessageSPV):
         self.assertNotEqual(message_spv.state, "error", message_spv.error)
         self.assertTrue(message_spv.invoice_id)
         self.assertFalse(
-            [c for c in opened_from if c.split(":")[0].endswith("models/message_spv.py")],
+            [
+                c
+                for c in opened_from
+                if c.split(":")[0].endswith("models/message_spv.py")
+            ],
             "create_invoice must not wrap the import in a savepoint",
         )
 
@@ -1194,7 +1256,8 @@ class TestMessageSPV(TestMessageSPV):
         msg_dict = {
             "mesaje": [
                 {
-                    "data_creare": "202312120940",
+                    # recent: the ZIP cron skips what ANAF no longer keeps
+                    "data_creare": fields.Datetime.now().strftime("%Y%m%d%H%M"),
                     "cif": "23685159",
                     "id_solicitare": "CRON_REQ_1",
                     "detalii": "Factura emisa de 8486152",

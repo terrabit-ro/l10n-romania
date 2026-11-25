@@ -153,6 +153,12 @@ msgid "Download"
 msgstr "Descarcă"
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_download_received_only
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_download_received_only
+msgid "Download only received invoices"
+msgstr "Descarcă doar facturile primite"
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__download_attempts
 msgid "Download Attempts"
 msgstr "Încercări de descărcare"
@@ -443,6 +449,18 @@ msgstr "Stare"
 #: model:ir.model.fields,help:l10n_ro_message_spv.field_account_move__l10n_ro_edi_transaction
 msgid "Technical field used to track the status of a submission."
 msgstr "Câmp tehnic folosit pentru a urmări starea unei trimiteri."
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_res_company__l10n_ro_spv_download_received_only
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_download_received_only
+msgid ""
+"The cron downloads the archives of the received invoices only. The "
+"issued invoices are already in Odoo, their archives can still be "
+"downloaded from the message."
+msgstr ""
+"Cron-ul descarcă doar arhivele facturilor primite. Facturile emise "
+"sunt deja în Odoo, arhivele lor se pot descărca în continuare din "
+"mesaj."
 
 #. module: l10n_ro_message_spv
 #. odoo-python

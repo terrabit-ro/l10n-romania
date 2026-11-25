@@ -1,3 +1,13 @@
+**19.0.2.18.0 (2026-11-25)**
+
+- The cron *Download ZIP SPV Message* asks ANAF only for the messages of the
+  last 60 days, the time ANAF keeps them. An older message used to fail and
+  was put back in the queue every day, forever.
+- New setting *Download only received invoices*: the cron downloads the
+  archives of the received invoices only.
+- The filter *In Invoices* also shows the received invoices paid with a
+  fiscal receipt (*In Receipt*).
+
 **19.0.2.17.1 (2026-11-24)**
 
 - *Create Invoice* no longer fails with "savepoint does not exist" when the

@@ -19,3 +19,7 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.l10n_ro_spv_review_required",
         readonly=False,
     )
+    l10n_ro_spv_download_received_only = fields.Boolean(
+        related="company_id.l10n_ro_spv_download_received_only",
+        readonly=False,
+    )

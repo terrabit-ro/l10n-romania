@@ -3,14 +3,20 @@
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 
 from odoo import fields, models
 from odoo.exceptions import UserError
 
+from .message_spv import RECEIVED_TYPES
+
 _logger = logging.getLogger(__name__)
+
+# ANAF keeps the messages for 60 days: an older archive can no longer be
+# downloaded, so the cron does not ask for it again every day.
+ANAF_MESSAGE_RETENTION_DAYS = 60
 
 
 class ResCompany(models.Model):
@@ -33,6 +39,27 @@ class ResCompany(models.Model):
         help="Received invoices arrive in SPV messages as To Review and a bill "
         "can be created only from an accepted invoice.",
     )
+    l10n_ro_spv_download_received_only = fields.Boolean(
+        string="Download only received invoices",
+        help="The cron downloads the archives of the received invoices only. The "
+        "issued invoices are already in Odoo, their archives can still be "
+        "downloaded from the message.",
+    )
+
+    def _l10n_ro_spv_download_domain(self):
+        """The SPV messages of this company whose archive the cron downloads."""
+        self.ensure_one()
+        since = fields.Datetime.now() - timedelta(days=ANAF_MESSAGE_RETENTION_DAYS)
+        domain = [
+            ("company_id", "=", self.id),
+            ("attachment_id", "=", False),
+            "|",
+            ("date", "=", False),
+            ("date", ">=", since),
+        ]
+        if self.l10n_ro_spv_download_received_only:
+            domain.append(("message_type", "in", RECEIVED_TYPES))
+        return domain
 
     def l10n_ro_download_zip_message_spv(self, limit=5):
         # method to be used in cron job to auto download e-invoices from ANAF
@@ -43,10 +70,10 @@ class ResCompany(models.Model):
         for company in ro_companies:
             # Resetăm la draft mesajele căzute în eroare în zilele trecute, ca să
             # fie reîncercate (cota ANAF de 10 descărcări/zi/mesaj se reînnoiește).
+            download_domain = company._l10n_ro_spv_download_domain()
             error_messages_from_past = company.env["l10n.ro.message.spv"].search(
-                [
-                    ("company_id", "=", company.id),
-                    ("attachment_id", "=", False),
+                download_domain
+                + [
                     ("state", "=", "error"),
                     ("last_download_date", "<", fields.Date.today()),
                 ]
@@ -58,11 +85,7 @@ class ResCompany(models.Model):
 
             # Procesăm mesajele în starea draft (state="error" rămâne exclus,
             # deci un mesaj epuizat în ziua curentă nu mai e reselectat).
-            domain = [
-                ("company_id", "=", company.id),
-                ("attachment_id", "=", False),
-                ("state", "=", "draft"),
-            ]
+            domain = download_domain + [("state", "=", "draft")]
             messages = company.env["l10n.ro.message.spv"].search(
                 domain, limit=limit + 1
             )

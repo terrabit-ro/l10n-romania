@@ -205,6 +205,12 @@ msgid "Download"
 msgstr ""
 
 #. module: l10n_ro_message_spv
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_company__l10n_ro_spv_download_received_only
+#: model:ir.model.fields,field_description:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_download_received_only
+msgid "Download only received invoices"
+msgstr ""
+
+#. module: l10n_ro_message_spv
 #: model:ir.model.fields,field_description:l10n_ro_message_spv.field_l10n_ro_message_spv__download_attempts
 msgid "Download Attempts"
 msgstr ""
@@ -696,6 +702,15 @@ msgstr ""
 #. odoo-python
 #: code:addons/l10n_ro_message_spv/models/ciusro_document.py:0
 msgid "The SPV message list could not be parsed."
+msgstr ""
+
+#. module: l10n_ro_message_spv
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_res_company__l10n_ro_spv_download_received_only
+#: model:ir.model.fields,help:l10n_ro_message_spv.field_res_config_settings__l10n_ro_spv_download_received_only
+msgid ""
+"The cron downloads the archives of the received invoices only. The "
+"issued invoices are already in Odoo, their archives can still be "
+"downloaded from the message."
 msgstr ""
 
 #. module: l10n_ro_message_spv
