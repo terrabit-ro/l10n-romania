@@ -1,3 +1,13 @@
+**19.0.2.18.1 (2026-11-25)**
+
+- *Get Invoice* (and the migration 19.0.2.17.0 that runs it on the unlinked
+  messages) no longer links an invoice of another company. In a group of
+  companies, the invoice issued by one company has the same number as the
+  reference of the message received by the other one, and the upgrade stopped
+  with "no company crossover is allowed". The candidates are now only the
+  invoices of the company of the message and, for a message received, only
+  vendor documents (for a message sent, only customer documents).
+
 **19.0.2.18.0 (2026-11-25)**
 
 - The cron *Download ZIP SPV Message* asks ANAF only for the messages of the
