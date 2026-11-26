@@ -12,7 +12,7 @@
                         groups="account.group_account_user"
                         string="Refresh"
                         type="object"
-                        icon="fa-refresh"
+                        icon="refresh"
                         display="always"
                     />
                     <button
@@ -91,14 +91,14 @@
                 <button
                     name="action_download_pdf"
                     type="object"
-                    icon="fa-file-pdf-o"
+                    icon="picture_as_pdf"
                     title="Download the invoice PDF"
                     invisible="not attachment_id"
                 />
                 <button
                     name="action_download_xml"
                     type="object"
-                    icon="fa-file-code-o"
+                    icon="code"
                     title="Download the invoice XML"
                     invisible="not attachment_id"
                 />
@@ -136,7 +136,7 @@
                         name="action_download_attachment"
                         string="ZIP"
                         type="object"
-                        icon="fa-file-archive-o"
+                        icon="folder_zip"
                         invisible="not attachment_id"
                         title="Download the signed ANAF ZIP"
                     />
@@ -144,7 +144,7 @@
                         name="action_download_xml"
                         string="XML"
                         type="object"
-                        icon="fa-file-code-o"
+                        icon="code"
                         invisible="not attachment_id"
                         title="Download the invoice XML"
                     />
@@ -152,7 +152,7 @@
                         name="action_download_anaf_pdf"
                         string="PDF ANAF"
                         type="object"
-                        icon="fa-file-pdf-o"
+                        icon="picture_as_pdf"
                         invisible="not attachment_id"
                         title="Download the PDF rendered by ANAF"
                     />
@@ -160,7 +160,7 @@
                         name="action_download_embedded_pdf"
                         string="PDF"
                         type="object"
-                        icon="fa-paperclip"
+                        icon="attach_file"
                         invisible="not attachment_id"
                         title="Download the PDF embedded in the invoice XML"
                     />

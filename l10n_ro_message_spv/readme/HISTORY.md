@@ -1,3 +1,7 @@
+**20.0.2.18.1 (2026-11-26)**
+
+- Button icons use Material Symbols (`refresh`, `picture_as_pdf`, `code`, `folder_zip`, `attach_file`) instead of Font Awesome, which Odoo 20 no longer renders.
+
 **20.0.2.18.0 (2026-11-22)**
 
 - *Get Invoice* on a received invoice with code 751 (paid with a fiscal
