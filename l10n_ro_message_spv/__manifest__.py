@@ -16,7 +16,7 @@
         "wizard/message_spv_reject_views.xml",
     ],
     "license": "AGPL-3",
-    "version": "20.0.2.18.0",
+    "version": "20.0.2.18.1",
     "author": "Terrabit,Odoo Community Association (OCA)",
     "website": "https://github.com/OCA/l10n-romania",
     "installable": True,
