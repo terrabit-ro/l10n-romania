@@ -200,6 +200,16 @@ Performance notes
 Changelog
 =========
 
+20.0.1.15.2
+-----------
+
+- Fill the value of a dropship move only while the move is validated,
+  when its valuation entry is posted (forward port of the 19.0 fix for
+  vendor bills posted again). On 20.0 a dropship move is not linked to
+  the vendor bill, so the bill does not reach it; the guard keeps any
+  other caller of ``_set_value`` from filling a historical zero value
+  without a journal entry.
+
 20.0.1.15.1
 -----------
 
