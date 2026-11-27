@@ -483,6 +483,22 @@ class StockMove(models.Model):
             return self.product_qty
         return super()._get_valued_qty(lot=lot, signed=signed)
 
+    def _update_accounting_entries(self):
+        """Keep the Romanian stock entries as posted when the move is done.
+
+        Since odoo/odoo@501a537 core calls this after every `_set_value`
+        (e.g. a vendor bill revaluing its reception) and books
+        `_get_account_move_line_vals()` as the correction of the move entry.
+        For a Romanian move that method returns the whole entry of the move
+        type, not a difference, so the full value was booked a second time
+        (371 / 408 doubled on a notice reception). The Romanian entries are
+        posted from the move values when the move is done and are not
+        rewritten afterwards; price differences are handled by the stock
+        valuation and `l10n_ro_stock_price_difference`.
+        """
+        other_moves = self.filtered(lambda m: not m.is_l10n_ro_record)
+        return super(StockMove, other_moves)._update_accounting_entries()
+
     def _should_create_account_move(self):
         # For Romania we should create account moves for all stock moves
         res = super()._should_create_account_move()
