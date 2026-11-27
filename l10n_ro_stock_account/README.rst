@@ -200,6 +200,19 @@ Performance notes
 Changelog
 =========
 
+20.0.1.15.1
+-----------
+
+- Fix the stock entries of Romanian moves being booked a second time
+  when a vendor bill revalues them (e.g. 371 and 408 doubled on a notice
+  reception). Since odoo/odoo@501a537 core updates the journal entry of
+  a move after every revaluation, taking
+  ``_get_account_move_line_vals()`` as the correction, while for a
+  Romanian move it returns the whole entry of the move type. Romanian
+  moves are now left out of that update: their entries are posted when
+  the move is done and are not rewritten afterwards, as up to this core
+  change.
+
 20.0.1.15.0
 -----------
 
