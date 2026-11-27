@@ -200,6 +200,19 @@ Performance notes
 Changelog
 =========
 
+19.0.1.18.1
+-----------
+
+- Fix posting again a vendor bill linked to a done dropship move filling
+  the value of that move. Core values the bill's dropship moves when the
+  bill is posted, and the module completed every dropship move still
+  valued at zero with its full value (not the bill difference), without
+  any journal entry, e.g. a historical move going from 0 to its full
+  value after a 0.10 change on the bill. The value of a dropship move is
+  now filled only while the move is validated, when its valuation entry
+  is posted. Historical zero values are not recomputed; review them with
+  ``l10n_ro_stock_account_check``.
+
 19.0.1.18.0
 -----------
 

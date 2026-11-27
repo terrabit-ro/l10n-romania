@@ -326,8 +326,14 @@ class StockMove(models.Model):
             # we need to set the value to the same as the stock valuation
             move.value = move.sudo()._get_value()
 
-        for move in ro_dropship_moves.filtered(lambda m: not m.value):
-            move.value = move.sudo()._get_value()
+        # Fill the value of a dropship move only while the move itself is
+        # being validated: that is the only moment its valuation entry is
+        # posted. Core also calls _set_value() when a linked vendor bill is
+        # posted again; filling a historical move (value 0) there would set
+        # its full value without any matching journal entry.
+        if self.env.context.get("l10n_ro_dropship_set_value"):
+            for move in ro_dropship_moves.filtered(lambda m: not m.value):
+                move.value = move.sudo()._get_value()
         return res
 
     def _l10n_ro_get_source_account_unit_cost(self):
@@ -457,7 +463,10 @@ class StockMove(models.Model):
             lambda m: m.l10n_ro_move_type == "internal_transfer"
         )
         ro_internal_moves._set_value()
-        res = super()._action_done(cancel_backorder=cancel_backorder)
+        res = super(
+            StockMove, self.with_context(l10n_ro_dropship_set_value=True)
+        )._action_done(cancel_backorder=cancel_backorder)
+        res = res.with_env(self.env)
         for move in ro_moves:
             move._create_account_move_ro_extra()
         return res

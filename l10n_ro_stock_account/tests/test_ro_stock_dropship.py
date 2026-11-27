@@ -221,3 +221,64 @@ class TestROStockDropship(TestROStockCommon):
             places=2,
             msg="Dropship cost must not bleed into the product's average cost",
         )
+
+    def _bill_dropship(self, move, price=None):
+        purchase = move.purchase_line_id.order_id
+        action = purchase.action_create_invoice()
+        bill = self.env["account.move"].browse(action["res_id"])
+        bill.invoice_date = bill.invoice_date or bill.date
+        if price is not None:
+            bill.invoice_line_ids.price_unit = price
+        bill.action_post()
+        return bill
+
+    def test_dropship_bill_repost_keeps_historical_zero_value(self):
+        """Posting again a vendor bill linked to a done dropship move must not
+        fill a historical zero value.
+
+        Core calls `_set_value()` on the bill's dropship moves when the bill
+        is posted. The value of a dropship move is set only while the move is
+        validated, because that is when its valuation entry is posted; filling
+        it from the bill would put the full move value on the move with no
+        matching journal entry."""
+        move = self._create_and_validate_dropship(qty=5.0)
+        stock_entry = move.account_move_id
+        self.assertTrue(stock_entry)
+
+        # A dropship validated before its value was computed (migrated history)
+        move.value = 0.0
+
+        bill = self._bill_dropship(move)
+        self.assertEqual(move.value, 0.0)
+
+        bill.button_draft()
+        bill.invoice_line_ids.price_unit += 0.02
+        bill.action_post()
+
+        self.assertEqual(
+            move.value,
+            0.0,
+            "Re-posting the bill must not value a historical dropship move",
+        )
+        self.assertEqual(
+            move.account_move_id,
+            stock_entry,
+            "Re-posting the bill must not create a stock valuation entry",
+        )
+
+    def test_dropship_bill_keeps_delivery_value(self):
+        """A bill posted after the dropship delivery leaves the move valued at
+        the delivery value, the one its valuation entry was posted with."""
+        move = self._create_and_validate_dropship(qty=5.0)
+        delivery_value = move.value
+        self.assertTrue(delivery_value)
+
+        self._bill_dropship(move, price=move.purchase_line_id.price_unit + 1.0)
+
+        self.assertAlmostEqual(move.value, delivery_value, places=2)
+        valuation_lines = move.account_move_id.line_ids.filtered(
+            lambda line: line.account_id == self.account_valuation
+        )
+        self.assertAlmostEqual(
+            sum(valuation_lines.mapped("credit")), delivery_value, places=2
+        )
