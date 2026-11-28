@@ -129,12 +129,8 @@
                     <t t-else="">
                         <t t-if="o.state != 'done'">
                             <td class="text-end">
-                                <span
-                                    t-out="aggregated_lines[line]['qty_ordered']"
-                                />
-                                <span
-                                    t-out="aggregated_lines[line]['uom_id'].name"
-                                />
+                                <span t-out="aggregated_lines[line]['qty_ordered']" />
+                                <span t-out="aggregated_lines[line]['uom_id'].name" />
                             </td>
                         </t>
                         <td class="text-end">
