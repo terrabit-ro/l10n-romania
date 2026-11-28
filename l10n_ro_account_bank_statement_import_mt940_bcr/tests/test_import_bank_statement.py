@@ -128,7 +128,7 @@ class TestImport(TestMT940BankStatementImport):
         """Test _is_bcr function."""
         # Create a journal with BCR BIC
         bank = self.create_partner_bank("RO48RNCB0090000506460002")
-        bank.bank_id.bic = "RNCBROBU"
+        bank.bank_bic = "RNCBROBU"
         journal = self.create_journal("BCRJRNL", bank, self.env.ref("base.RON"))
 
         wizard = self.env["account.statement.import"].with_context(
