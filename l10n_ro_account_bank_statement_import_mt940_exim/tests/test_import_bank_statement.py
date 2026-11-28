@@ -104,13 +104,13 @@ class TestImport(TestMT940BankStatementImport):
         otherwise."""
         wizard = self.env["account.statement.import"]
         for bic in ("BRMAROBU", "EXIMROBU"):
-            self.bank.bank_id.bic = bic
+            self.bank.bank_bic = bic
             self.assertTrue(
                 wizard.with_context(journal_id=self.journal.id)._is_exim(),
                 f"BIC {bic} must be recognised as Eximbank",
             )
 
-        self.bank.bank_id.bic = "BRDEROBU"
+        self.bank.bank_bic = "BRDEROBU"
         self.assertFalse(wizard.with_context(journal_id=self.journal.id)._is_exim())
 
         self.assertTrue(wizard.with_context(mt940_ro_exim=True)._is_exim())
@@ -134,7 +134,7 @@ class TestImport(TestMT940BankStatementImport):
         if acc_number:
             self.env["res.partner.bank"].create(
                 {
-                    "acc_number": acc_number,
+                    "account_number": acc_number,
                     "partner_id": company.partner_id.id,
                     "company_id": company.id,
                 }
