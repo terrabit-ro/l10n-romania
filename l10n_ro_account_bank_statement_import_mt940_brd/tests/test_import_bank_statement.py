@@ -106,7 +106,7 @@ class TestImport(TestMT940BankStatementImport):
         """The wizard must recognise a BRD statement both from the journal's
         BIC and from the explicit context flag, and stay out of the way
         otherwise."""
-        self.bank.bank_id.bic = "BRDEROBU"
+        self.bank.bank_bic = "BRDEROBU"
         wizard = self.env["account.statement.import"].with_context(
             journal_id=self.journal.id
         )
