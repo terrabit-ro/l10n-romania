@@ -110,13 +110,13 @@ RGER LOGISTICS ROU"""
         """The wizard must recognise a Raiffeisen statement both from the
         journal's BIC and from the explicit context flag, and stay out of the
         way otherwise."""
-        self.bank.bank_id.bic = "RZBRROBU"
+        self.bank.bank_bic = "RZBRROBU"
         wizard = self.env["account.statement.import"].with_context(
             journal_id=self.journal.id
         )
         self.assertTrue(wizard._is_rffsn())
 
-        self.bank.bank_id.bic = "BRDEROBU"
+        self.bank.bank_bic = "BRDEROBU"
         self.assertFalse(wizard._is_rffsn())
 
         wizard = self.env["account.statement.import"].with_context(mt940_ro_rffsn=True)
